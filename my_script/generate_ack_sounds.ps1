@@ -23,7 +23,7 @@ $phrases = @()
 foreach ($exp in $config.expressions.PSObject.Properties.Name) {
     foreach ($phrase in $config.expressions.$exp) {
         $phrases += @{
-            file             = "${exp}_$($phrase.romaji).wav"
+            file             = "${exp}_$($phrase.romaji).mp3"
             text             = $phrase.text
             params           = $phrase.params
             kana             = $phrase.kana
@@ -95,14 +95,20 @@ foreach ($speakerId in $speakerIds) {
 
             $queryJson = $queryObject | ConvertTo-Json -Depth 10
 
-            # Step2: 音声合成して WAV ファイルを保存する
+            # Step2: 音声合成して WAV を一時保存し MP3 に変換する
             $synthUrl = "$baseUrl/synthesis?speaker=$speakerId"
             $client.Headers["Content-Type"] = "application/json"
             $wavBytes = $client.UploadData($synthUrl, "POST", [System.Text.Encoding]::UTF8.GetBytes($queryJson))
             $client.Headers.Remove("Content-Type")
-            [System.IO.File]::WriteAllBytes($outPath, $wavBytes)
+            $wavPath = [System.IO.Path]::ChangeExtension($outPath, "wav")
+            [System.IO.File]::WriteAllBytes($wavPath, $wavBytes)
 
-            Write-Host "    -> Saved: $outPath"
+            # WAV → MP3 変換（44100Hz / 128kbps）
+            $mp3Path = [System.IO.Path]::ChangeExtension($outPath, "mp3")
+            & ffmpeg -y -i $wavPath -ar 44100 -ab 128k $mp3Path -loglevel quiet
+            Remove-Item $wavPath
+
+            Write-Host "    -> Saved: $mp3Path"
         } catch {
             Write-Host "    -> Error: $($_.Exception.Message)"
         }
