@@ -1,0 +1,12 @@
+{
+  "folders": [
+    {
+      "name": "AI_StackChan_Ex (root)",
+      "path": "."
+    },
+    {
+      "name": "firmware (PlatformIO)",
+      "path": "firmware"
+    }
+  ]
+}
