@@ -8,6 +8,12 @@ $phrasesFile  = "$PSScriptRoot\json\ack_phrases.json"
 $speakersFile = "$PSScriptRoot\json\voicevox_speakers.json"
 # ==================
 
+# sounds フォルダをクリアしてから生成する
+if (Test-Path $outputDir) {
+    Remove-Item -Recurse -Force $outputDir
+}
+New-Item -ItemType Directory -Path $outputDir | Out-Null
+
 # ack_phrases.json から話者IDとセリフ設定を読み込む
 $config     = Get-Content $phrasesFile -Raw -Encoding UTF8 | ConvertFrom-Json
 $speakerIds = $config.speakerIds
