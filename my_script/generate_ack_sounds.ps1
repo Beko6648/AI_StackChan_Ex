@@ -16,7 +16,13 @@ $speakerIds = $config.speakerIds
 $phrases = @()
 foreach ($exp in $config.expressions.PSObject.Properties.Name) {
     foreach ($phrase in $config.expressions.$exp) {
-        $phrases += @{ file = "${exp}_$($phrase.romaji).wav"; text = $phrase.text }
+        $phrases += @{
+            file             = "${exp}_$($phrase.romaji).wav"
+            text             = $phrase.text
+            params           = $phrase.params
+            kana             = $phrase.kana
+            is_interrogative = $phrase.is_interrogative
+        }
     }
 }
 
@@ -24,7 +30,7 @@ foreach ($exp in $config.expressions.PSObject.Properties.Name) {
 $speakerNameMap = @{}
 if (Test-Path $speakersFile) {
     $speakersData  = Get-Content $speakersFile -Raw -Encoding UTF8 | ConvertFrom-Json
-    # PS5.1 で生成した場合は配列が value プロパティにラップされているため展開する
+    # PS5.1 の ConvertFrom-Json は JSON 配列を value プロパティにラップするため展開する
     $speakersArray = if ($speakersData.PSObject.Properties.Name -contains 'value') { $speakersData.value } else { $speakersData }
     foreach ($speaker in $speakersArray) {
         foreach ($style in $speaker.styles) {
@@ -56,9 +62,32 @@ foreach ($speakerId in $speakerIds) {
 
         try {
             # Step1: audio_query を取得する（空ボディで POST）
-            $queryUrl   = "$baseUrl/audio_query?text=$([Uri]::EscapeDataString($text))&speaker=$speakerId"
-            $queryBytes = $client.UploadData($queryUrl, "POST", [System.Text.Encoding]::UTF8.GetBytes(""))
-            $queryJson  = [System.Text.Encoding]::UTF8.GetString($queryBytes)
+            $queryUrl    = "$baseUrl/audio_query?text=$([Uri]::EscapeDataString($text))&speaker=$speakerId"
+            $queryBytes  = $client.UploadData($queryUrl, "POST", [System.Text.Encoding]::UTF8.GetBytes(""))
+            $queryObject = [System.Text.Encoding]::UTF8.GetString($queryBytes) | ConvertFrom-Json
+
+            # params が定義されている場合は audio_query のトップレベルパラメータを上書きする
+            if ($null -ne $phrase.params) {
+                foreach ($param in $phrase.params.PSObject.Properties) {
+                    $queryObject.$($param.Name) = $param.Value
+                }
+            }
+
+            # kana が定義されている場合は AquesTalk 記法でアクセントを再計算して差し替える
+            # 記法例: フ'ム（'の直後から音が下がる頭高型）、フム（音が下がらない平板型）
+            if ($null -ne $phrase.kana -and $phrase.kana -ne "") {
+                $accentUrl = "$baseUrl/accent_phrases?text=$([Uri]::EscapeDataString($phrase.kana))&speaker=$speakerId&is_kana=true"
+                $accentResponse = Invoke-WebRequest -Uri $accentUrl -Method POST -UseBasicParsing -SkipHttpErrorCheck
+                if ($accentResponse.StatusCode -ne 200) { throw "accent_phrases API error: $($accentResponse.StatusCode)" }
+                $queryObject.accent_phrases = @($accentResponse.Content | ConvertFrom-Json)
+            }
+
+            # is_interrogative が定義されている場合は最後のアクセント句に適用する（語尾の上がり下がり）
+            if ($null -ne $phrase.is_interrogative) {
+                $queryObject.accent_phrases[-1].is_interrogative = $phrase.is_interrogative
+            }
+
+            $queryJson = $queryObject | ConvertTo-Json -Depth 10
 
             # Step2: 音声合成して WAV ファイルを保存する
             $synthUrl = "$baseUrl/synthesis?speaker=$speakerId"
