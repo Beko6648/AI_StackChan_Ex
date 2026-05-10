@@ -88,7 +88,6 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
     playAckSound(system_config.getExConfig());  // 現在の感情に応じた相槌を再生
     robot->chat(ret, base64_buf);
     avatar.setSpeechText("");
-    avatar.setExpression(stackChanMind.getEmotion());  // 会話終了後は現在の感情表情に戻す
     servo_home = true;
   } else {
     Serial.println("音声認識失敗");
@@ -96,7 +95,6 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
     avatar.setSpeechText("聞き取れませんでした");
     delay(2000);
     avatar.setSpeechText("");
-    avatar.setExpression(stackChanMind.getEmotion());  // 会話終了後は現在の感情表情に戻す
     servo_home = true;
   } 
 }
