@@ -16,6 +16,7 @@
 #include "llm/ModuleLLM/ChatModuleLLM.h"
 #include "llm/ModuleLLMFncl/ChatModuleLLMFncl.h"
 #include "Avatar.h"
+#include "StackChanMind.h"
 
 using namespace m5avatar;
 
@@ -278,7 +279,7 @@ void Robot::speech(String text)
 
     tts->stream(text);
 
-    avatar.setExpression(Expression::Neutral);
+    stackChanMind.applyExpression();  // 発話終了後、現在の感情表情に戻す
     servo_home = true;
   }
 }

@@ -30,3 +30,7 @@ moduleLLM:
   rxPin: 13
   txPin: 14
 
+# 相槌音声
+ack:
+  speakerId: -1                        # 使用する話者ID。-1 の場合は tts.voice を自動使用 (WebVoiceVox 時)
+

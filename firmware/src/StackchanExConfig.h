@@ -82,6 +82,10 @@ typedef struct ModuleLLMConf {
     int8_t txPin;
 } moduleLLM_s;
 
+typedef struct AckConf {
+    int speakerId = -1;  // -1: tts.voice を自動使用
+} ack_s;
+
 typedef struct ExConfig {
     llm_s llm;
     tts_s tts;
@@ -89,6 +93,7 @@ typedef struct ExConfig {
     wakeword_s wakeword;
     audio_s audio;
     moduleLLM_s moduleLLM;
+    ack_s ack;
 } ex_config_s;
 
 

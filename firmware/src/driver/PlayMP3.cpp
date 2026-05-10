@@ -11,6 +11,7 @@
 #include "AudioOutputM5Speaker.h"
 #include "PlayMP3.h"
 #include "Avatar.h"
+#include "StackChanMind.h"
 
 using namespace m5avatar;
 
@@ -87,7 +88,7 @@ bool playMP3SPIFFS(const char *filename)
 
       playMP3(buff);
       
-      avatar.setExpression(Expression::Neutral);
+      avatar.setExpression(stackChanMind.getEmotion());  // 再生後は現在の感情表情に戻す
       servo_home = true;
 
       delete file_mp3;
@@ -102,7 +103,14 @@ bool playMP3SPIFFS(const char *filename)
 }
 
 
+// 既存の呼び出し元への影響をなくすため Happy 固定で playMP3SDWithExpression に委譲する
 bool playMP3SD(const char *filename)
+{
+  return playMP3SDWithExpression(filename, Expression::Happy);
+}
+
+// 再生中の表情を指定できる版。再生中は expr の表情、再生後は Neutral に戻す
+bool playMP3SDWithExpression(const char *filename, Expression expr)
 {
   bool result;
 
@@ -110,21 +118,20 @@ bool playMP3SD(const char *filename)
 
     AudioFileSourceSD *file_mp3 = new AudioFileSourceSD(filename);
     Serial.println("Open mp3");
-    
+
     if( !file_mp3->isOpen() ){
       delete file_mp3;
-      //file_mp3 = nullptr;
       Serial.println("failed to open mp3 file");
       result = false;
     }
     else{
       AudioFileSourceBuffer *buff = new AudioFileSourceBuffer(file_mp3, preallocateBuffer, preallocateBufferSize);
-      avatar.setExpression(Expression::Happy);
+      avatar.setExpression(expr);
       servo_home = false;
 
       playMP3(buff);
-      
-      avatar.setExpression(Expression::Neutral);
+
+      avatar.setExpression(stackChanMind.getEmotion());  // 再生後は現在の感情表情に戻す
       servo_home = true;
 
       delete file_mp3;

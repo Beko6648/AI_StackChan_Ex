@@ -1,0 +1,55 @@
+#include "AckSound.h"
+#include "StackChanMind.h"
+#include "driver/PlayMP3.h"
+
+using namespace m5avatar;
+
+// 各表情グループのファイル名（拡張子なし）と対応する Expression
+struct ExprGroup {
+    const char**  files;
+    int           count;
+    Expression    expression;
+};
+
+static const char* happy_files[]   = { "happy_un",     "happy_hai"   };
+static const char* neutral_files[] = { "neutral_fumu", "neutral_ee", "neutral_umu" };
+static const char* sad_files[]     = { "sad_un",        "sad_maa"     };
+static const char* angry_files[]   = { "angry_haa",     "angry_eee"   };
+static const char* doubt_files[]   = { "doubt_nn",      "doubt_eeto"  };
+static const char* sleepy_files[]  = { "sleepy_n",      "sleepy_uun"  };
+
+static const ExprGroup groups[] = {
+    { happy_files,   2, Expression::Happy   },
+    { neutral_files, 3, Expression::Neutral },
+    { sad_files,     2, Expression::Sad     },
+    { angry_files,   2, Expression::Angry   },
+    { doubt_files,   2, Expression::Doubt   },
+    { sleepy_files,  2, Expression::Sleepy  },
+};
+static const int N_GROUPS = sizeof(groups) / sizeof(groups[0]);
+
+static const ExprGroup* findGroup(Expression expr) {
+    for (int i = 0; i < N_GROUPS; i++) {
+        if (groups[i].expression == expr) return &groups[i];
+    }
+    return &groups[1];  // フォールバック: neutral
+}
+
+// speakerId を設定から解決する。-1 の場合は WebVoiceVox の voice を使用する
+static int resolveSpeakerId(const ex_config_s& cfg) {
+    if (cfg.ack.speakerId >= 0) return cfg.ack.speakerId;
+    if (cfg.tts.type == TTS_TYPE_WEB_VOICEVOX) return cfg.tts.voice.toInt();
+    return 3;  // フォールバック
+}
+
+void playAckSound(const ex_config_s& cfg) {
+    int speakerId        = resolveSpeakerId(cfg);
+    const ExprGroup* grp = findGroup(stackChanMind.getEmotion());
+    const char* file     = grp->files[random(grp->count)];
+
+    char path[64];
+    snprintf(path, sizeof(path), "/ack/%d/%s.mp3", speakerId, file);
+
+    Serial.printf("AckSound: %s\n", path);
+    playMP3SDWithExpression(path, grp->expression);
+}

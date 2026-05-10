@@ -138,6 +138,8 @@ void StackchanExConfig::setExtendSettings(DynamicJsonDocument doc)
     _ex_parameters.moduleLLM.rxPin  = doc["moduleLLM"]["rxPin"].as<int>();
     _ex_parameters.moduleLLM.txPin  = doc["moduleLLM"]["txPin"].as<int>();
 
+    _ex_parameters.ack.speakerId    = doc["ack"]["speakerId"] | -1;
+
 }
 
 void StackchanExConfig::printExtParameters(void)
@@ -168,5 +170,7 @@ void StackchanExConfig::printExtParameters(void)
 
     M5_LOGI("module llm rxPin: %d", _ex_parameters.moduleLLM.rxPin);
     M5_LOGI("module llm txPin: %d", _ex_parameters.moduleLLM.txPin);
-    
+
+    M5_LOGI("ack speakerId: %d", _ex_parameters.ack.speakerId);
+
 }

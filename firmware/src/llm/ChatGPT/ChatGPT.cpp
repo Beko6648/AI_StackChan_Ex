@@ -12,6 +12,7 @@
 #include "FunctionCall.h"
 #include "MCPClient.h"
 #include "Robot.h"
+#include "StackChanMind.h"
 
 using namespace m5avatar;
 extern Avatar avatar;
@@ -214,6 +215,17 @@ void ChatGPT::chat(String text, const char *base64_buf) {
   {
     init_chat_doc(InitBuffer.c_str());
 
+    // 現在の感情を含む指示をシステムロールに追加する
+    {
+      String emotionInstr =
+        String("あなたの現在の感情は「") + stackChanMind.emotionToString() + "」です。"
+        "返答の末尾に会話内容を踏まえた次の感情を付与してください。"
+        "形式: [META]{\"emotion\": \"happy\"}[/META] "
+        "感情の種類: happy(喜び) neutral(普通) sad(悲しみ) angry(怒り) doubt(疑問) sleepy(眠気)";
+      String cur = String((const char*)chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"]);
+      chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"] = cur + " " + emotionInstr;
+    }
+
     //if(reqCount == (MAX_REQUEST_COUNT - 1)){
     //  funcCallMode = String("none");
     //}
@@ -322,6 +334,23 @@ String ChatGPT::execChatGpt(String json_string, String& calledFunc) {
         Serial.println(data);
         response = String(data);
         std::replace(response.begin(),response.end(),'\n',' ');
+
+        // [META]...[/META] から感情名を抽出して更新し、タグを除去する
+        {
+          int metaStart = response.indexOf("[META]");
+          int metaEnd   = response.indexOf("[/META]");
+          if (metaStart >= 0 && metaEnd > metaStart) {
+            String metaContent = response.substring(metaStart + 6, metaEnd);
+            DynamicJsonDocument metaDoc(64);
+            if (!deserializeJson(metaDoc, metaContent)) {
+              const char* emotion = metaDoc["emotion"];
+              if (emotion) stackChanMind.setEmotion(String(emotion));
+            }
+            response = response.substring(0, metaStart) + response.substring(metaEnd + 7);
+            response.trim();
+          }
+        }
+
         calledFunc = String("");
       }
     }
