@@ -95,6 +95,7 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
     avatar.setSpeechText("聞き取れませんでした");
     delay(2000);
     avatar.setSpeechText("");
+    stackChanMind.applyExpression();  // Sad 表示後、現在の感情表情に戻す
     servo_home = true;
   } 
 }
