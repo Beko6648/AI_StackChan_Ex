@@ -109,7 +109,7 @@ bool playMP3SD(const char *filename)
   return playMP3SDWithExpression(filename, Expression::Happy);
 }
 
-// 再生中の表情を指定できる版。再生中は expr の表情、再生後は Neutral に戻す
+// 再生中の表情を指定できる版。再生中は expr の表情、再生後は stackChanMind の現在の感情表情に戻す
 bool playMP3SDWithExpression(const char *filename, Expression expr)
 {
   bool result;

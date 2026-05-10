@@ -341,7 +341,7 @@ String ChatGPT::execChatGpt(String json_string, String& calledFunc) {
           int metaEnd   = response.indexOf("[/META]");
           if (metaStart >= 0 && metaEnd > metaStart) {
             String metaContent = response.substring(metaStart + 6, metaEnd);
-            DynamicJsonDocument metaDoc(64);
+            DynamicJsonDocument metaDoc(128);
             if (!deserializeJson(metaDoc, metaContent)) {
               const char* emotion = metaDoc["emotion"];
               if (emotion) stackChanMind.setEmotion(String(emotion));
