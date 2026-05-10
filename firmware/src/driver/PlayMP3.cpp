@@ -87,8 +87,8 @@ bool playMP3SPIFFS(const char *filename)
       servo_home = false;
 
       playMP3(buff);
-      
-      avatar.setExpression(stackChanMind.getEmotion());  // 再生後は現在の感情表情に戻す
+
+      stackChanMind.applyExpression();  // 再生後は現在の感情表情に戻す
       servo_home = true;
 
       delete file_mp3;
