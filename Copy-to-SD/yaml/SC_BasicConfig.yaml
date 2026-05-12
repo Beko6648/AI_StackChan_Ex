@@ -6,10 +6,11 @@ servo:
     # CoreS3 PortA X:1,Y:2 PortB X:8,Y:9 PortC X:18,Y:17
     # Stack-chanPCB Core1 X:5,Y:2 Core2 X:19,Y27
     # When using SCS0009, x:RX, y:TX (not used).(StackchanRT Version:Core1 x16,y17, Core2: x13,y14)
-    x: 18
-    y: 17
+    # M5Stack公式スタックちゃん(CoreS3 SE): x:7(G7=Servo_RX), y:6(G6=Servo_TX), servo_type: "M5_SCS"
+    x: 7
+    y: 6
   center:
-    x: 90
+    x: 150
     y: 90
   offset: 
     # Specified by +- from 90 degree during servo initialization
@@ -45,5 +46,5 @@ balloon:
 led_lr: 0 # 0:stereo, 1:left_only, 2:right_only
 led_pin: 15 # GoBottom1:15 GoBottom2:25
 takao_base: false # Whether to use takaobase to feed power from the rear connector.(Stack-chan_Takao_Base  https://ssci.to/8905)
-servo_type: "SCS" # "PWM": SG90PWMServo, "SCS": Feetech SCS0009
+servo_type: "M5_SCS" # "PWM": SG90PWMServo, "SCS": Feetech SCS0009, "M5_SCS": M5Stack公式スタックちゃん(PY32IOExpander経由)
 secret_config_show: true                               # Whether personal information is output to the log or not.

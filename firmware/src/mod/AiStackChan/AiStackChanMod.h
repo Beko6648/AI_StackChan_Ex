@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include "mod/ModBase.h"
+#include "head/HeadMotionController.h"
 
 class AiStackChanMod: public ModBase{
 private:
@@ -15,6 +16,7 @@ private:
     #endif
     String avatarText;
     bool isOffline;
+    HeadMotionController _headCtrl;  // 頭の動き制御
 public:
     AiStackChanMod(bool _isOffline);
 

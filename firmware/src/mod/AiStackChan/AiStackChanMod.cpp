@@ -17,6 +17,7 @@
 #include "share/SDUtil.h"
 #include "AckSound.h"
 #include "StackChanMind.h"
+#include "head/IdleLookAround.h"
 
 extern StackchanExConfig system_config;
 #if defined( ENABLE_CAMERA )
@@ -43,6 +44,9 @@ extern bool servo_home;
 extern void sw_tone();
 extern void alarm_tone();
 ///////////////
+
+// static 関数から HeadMotionController にアクセスするためのファイルスコープポインタ
+static HeadMotionController* s_headCtrl = nullptr;
 
 
 static void report_batt_level(){
@@ -71,6 +75,9 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
   servo_home = true;
 #endif
 
+  // 会話中は頭のきょろきょろを停止して正面を向く
+  if (s_headCtrl) s_headCtrl->stop();
+
   avatar.setExpression(Expression::Happy);
   avatar.setSpeechText("御用でしょうか？");
 
@@ -97,7 +104,10 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
     avatar.setSpeechText("");
     stackChanMind.applyExpression();  // Sad 表示後、現在の感情表情に戻す
     servo_home = true;
-  } 
+  }
+
+  // 会話終了後にきょろきょろを再開
+  if (s_headCtrl) s_headCtrl->setMotion(new IdleLookAround());
 }
 
 
@@ -136,6 +146,10 @@ AiStackChanMod::AiStackChanMod(bool _isOffline)
     wakeword_init();
 #endif
   }
+
+  // アイドル時の頭の動きを設定
+  s_headCtrl = &_headCtrl;
+  _headCtrl.setMotion(new IdleLookAround());
 
 }
 
@@ -427,6 +441,9 @@ void AiStackChanMod::idle(void)
   if(!isOffline){
     run_schedule();
   }
+
+  // 頭の動き更新
+  _headCtrl.update();
 
 }
 
