@@ -2,6 +2,7 @@
 # AI機能 (LLM, TTS, STT, Wakeword)
 llm:
   type: 0                            # 0:ChatGPT  1:ModuleLLM  2:ModuleLLM(Function Calling)
+  model: "gpt-4o-mini"              # ChatGPT モデル指定。未記載または空欄の場合は gpt-4o-mini を使用
 
 tts:
   type: 0                            # 0:VOICEVOX  1:ElevenLabs  2:OpenAI TTS  3:AquesTalk 4:ModuleLLM
@@ -9,13 +10,13 @@ tts:
   #model: "eleven_multilingual_v2"    # ElevenLabs
   #model: "tts-1"                     # OpenAI TTS
   #model: "melotts-ja-jp"             # ModuleLLM (日本語)  ※モデル指定なしの場合は英語
-  voice: "3"                         # VOICEVOX (ずんだもん)
+  voice: "89"                         # VOICEVOX (3:ずんだもん, 47:ナースロボ_タイプT, 89:Voidoll)
   #voice: "AZnzlk1XvdvUeBnXmlld"      # ElevenLabs
   #voice: "alloy"                     # OpenAI TTS
   #voice: ""                          # AquesTalk, ModuleLLM (voiceは未対応)
 
 stt:
-  type: 0                            # 0:Google STT  1:OpenAI Whisper  2:ModuleLLM(ASR)  3:ModuleLLM(Whisper)
+  type: 1                            # 0:Google STT  1:OpenAI Whisper  2:ModuleLLM(ASR)  3:ModuleLLM(Whisper)
 
 wakeword:
   type: 0                            # 0:SimpleVox  1:ModuleLLM(KWS)

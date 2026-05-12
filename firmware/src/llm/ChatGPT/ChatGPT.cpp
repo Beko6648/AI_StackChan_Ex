@@ -19,7 +19,7 @@ extern Avatar avatar;
 
 
 const String json_ChatString = 
-"{\"model\": \"gpt-4o\","
+"{\"model\": \"gpt-4o-mini\","
   "\"messages\": [{\"role\": \"system\", \"content\": \"\"},"     // ユーザーが設定するロール
                   "{\"role\": \"system\", \"content\": \"\"},"    // システム用のロール
                   "{\"role\": \"system\", \"content\": \"User Info: \"}],"  // 長期記憶の要約
@@ -101,6 +101,14 @@ void ChatGPT::load_role(){
   }
 
   init_chat_doc(json_ChatString.c_str());   // chat_docを初期化
+
+  // SC_ExConfig.yaml の llm.model が指定されていればモデルを上書きする（未指定時は gpt-4o-mini）
+  if (param.llm_conf.model.length() > 0
+      && param.llm_conf.model != "null"
+      && param.llm_conf.model != "") {
+    chat_doc["model"] = param.llm_conf.model;
+    Serial.printf("LLM model: %s\n", param.llm_conf.model.c_str());
+  }
 
   chat_doc["messages"][SYSTEM_PROMPT_INDEX_USER_ROLE]["content"] = role;
   chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"] = systemRole;
