@@ -1,0 +1,12 @@
+# 個人情報用の設定ファイル
+# このファイルをコピーして SC_SecConfig.yaml にリネームし、実際の値を入力してください。
+# SC_SecConfig.yaml は .gitignore で除外されており、git には登録されません。
+wifi:
+  ssid: "********"
+  password: "********"
+
+
+apikey:
+  stt: "********"       # ApiKey of SpeechToText Service
+  aiservice: "********" # ApiKey of AIService (OpenAI等)
+  tts: "********"       # ApiKey of TextToSpeech Service
