@@ -23,7 +23,7 @@ void drawLoop(void *args) {
       avatar->draw();
       avatar->fadeoutProcess();   //motoh
     }
-    vTaskDelay(33);
+    vTaskDelay(5);
   }
   vTaskDelete(NULL);
 }
@@ -129,6 +129,7 @@ void Avatar::start(int colorDepth) {
   _isDrawing = true;
 
   this->colorDepth = colorDepth;
+  face->initSprites(colorDepth);
   DriveContext *ctx = new DriveContext(this);
   // TODO(meganetaaan): keep handle of these tasks
   xTaskCreate(drawLoop,     /* Function to implement the task */
@@ -141,7 +142,7 @@ void Avatar::start(int colorDepth) {
 
   xTaskCreate(facialLoop,      /* Function to implement the task */
                           "facialLoop",    /* Name of the task */
-                          1024,         /* Stack size in words */
+                          2048,         /* Stack size in words */
                           ctx,          /* Task input parameter */
                           2,            /* Priority of the task */
                           NULL);        /* Task handle. */
