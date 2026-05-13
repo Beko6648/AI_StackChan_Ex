@@ -40,6 +40,8 @@ public:
     float getSleepiness() const { return _sleepiness; }
     float getWantToTalk() const { return _wantToTalk; }
 
+    void addJoy(float delta) { _joy = clamp(_joy + delta, -1.0f, 1.0f); }
+
 private:
     float _joy;
     float _trust;
@@ -51,9 +53,9 @@ private:
     // パラメータ更新の最小インターバル（ms）【テスト用: 10秒】
     static constexpr unsigned long UPDATE_INTERVAL_MS = 10000;
 
-    // wantToTalk が閾値を超えたら自発発話【テスト用: 約1分で0→0.8】
+    // wantToTalk が閾値を超えたら自発発話【テスト用: 約2分で0→0.8】
     static constexpr float WANT_TO_TALK_THRESHOLD = 0.8f;
-    static constexpr float WANT_TO_TALK_RATE      = 0.8f / 60.0f;
+    static constexpr float WANT_TO_TALK_RATE      = 0.8f / 120.0f;
 
     // 眠気【テスト用: 約3分で0→0.5】
     static constexpr float SLEEPINESS_RATE      = 0.5f / 180.0f;

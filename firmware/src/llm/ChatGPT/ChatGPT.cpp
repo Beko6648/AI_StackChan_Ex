@@ -229,6 +229,7 @@ void ChatGPT::chat(String text, const char *base64_buf) {
         String("あなたの現在の感情は「") + stackChanMind.emotionToString() + "」です。"
         "返答の末尾に会話内容を踏まえた次の感情を付与してください。"
         "形式: [META]{\"emotion\": \"happy\"}[/META] "
+        "※必ず半角角括弧 [ と ] を使用すること。全角【】は不可。"
         "感情の種類: happy(喜び) neutral(普通) sad(悲しみ) angry(怒り) doubt(疑問) sleepy(眠気)";
       String cur = String((const char*)chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"]);
       chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"] = cur + " " + emotionInstr;
@@ -342,6 +343,9 @@ String ChatGPT::execChatGpt(String json_string, String& calledFunc) {
         std::replace(response.begin(),response.end(),'\n',' ');
 
         // [META]...[/META] から感情名を抽出して更新し、タグを除去する
+        // LLMが全角【META】を出力する場合があるため半角に正規化する
+        response.replace("【META】",  "[META]");
+        response.replace("【/META】", "[/META]");
         {
           int metaStart = response.indexOf("[META]");
           int metaEnd   = response.indexOf("[/META]");

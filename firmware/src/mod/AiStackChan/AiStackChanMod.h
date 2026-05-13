@@ -5,6 +5,7 @@
 #include "mod/ModBase.h"
 #include "head/HeadMotionController.h"
 #include "mood/MoodManager.h"
+#include "driver/HeadTouch.h"
 
 class AiStackChanMod: public ModBase{
 private:
@@ -17,8 +18,9 @@ private:
     #endif
     String avatarText;
     bool isOffline;
-    HeadMotionController _headCtrl;  // 頭の動き制御
-    MoodManager _moodManager;        // 気分パラメータ管理
+    HeadMotionController _headCtrl;   // 頭の動き制御
+    MoodManager          _moodManager; // 気分パラメータ管理
+    HeadTouch            _headTouch;   // 頭部タッチセンサー
 public:
     AiStackChanMod(bool _isOffline);
 

@@ -166,6 +166,9 @@ AiStackChanMod::AiStackChanMod(bool _isOffline)
   // アイドル時の頭の動きを設定
   s_headCtrl    = &_headCtrl;
   s_moodManager = &_moodManager;
+
+  // 頭部タッチセンサー初期化
+  _headTouch.begin();
   _headCtrl.setMotion(new IdleLookAround());
 
 }
@@ -173,7 +176,7 @@ AiStackChanMod::AiStackChanMod(bool _isOffline)
 
 void AiStackChanMod::init(void)
 {
-  avatar.setSpeechText("AI Stack-chan");
+  avatar.setSpeechText("");
 #if defined(ENABLE_CAMERA)
   if(isSubWindowON){
     avatar.set_isSubWindowEnable(true);
@@ -471,6 +474,19 @@ void AiStackChanMod::idle(void)
   // 自発発話チェック
   if (_moodManager.shouldSpeak()) {
     spontaneousSpeech();
+  }
+
+  // 頭部タッチセンサー処理
+  switch (_headTouch.update()) {
+    case HeadTouch::Gesture::DoubleTap:
+      STT_ChatGPT();
+      break;
+    case HeadTouch::Gesture::Stroke:
+      _moodManager.addJoy(0.2f);
+      Serial.printf("[HeadTouch] Joy -> %.2f\n", _moodManager.getJoy());
+      break;
+    default:
+      break;
   }
 
 }
