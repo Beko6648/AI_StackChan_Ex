@@ -35,8 +35,6 @@ void IdleLookAround::moveToNextRandom() {
 #ifdef USE_SERVO
     robot->servo->moveToGaze(gazeX, gazeY);
 #endif
-    Serial.printf("IdleLookAround: -> (%d, %d)\n", gazeX, gazeY);
-
     _lookStartTime = millis();
     _lookDuration  = random(LOOK_MIN_MS, LOOK_MAX_MS + 1);
 }

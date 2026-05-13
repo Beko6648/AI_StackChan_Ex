@@ -77,6 +77,8 @@ Drawable *Face::getRightEye() { return eyeR; }
 BoundingRect *Face::getBoundingRect() { return boundingRect; }
 
 void Face::draw(DrawContext *ctx) {
+  unsigned long _t0 = millis();
+
   sprite->createSprite(boundingRect->getWidth(), boundingRect->getHeight());
   sprite->setColorDepth(ctx->getColorDepth());
   // NOTE: setting below for 1-bit color depth
@@ -121,6 +123,8 @@ void Face::draw(DrawContext *ctx) {
   //battery.draw(sprite, br, ctx);  //Rotateしないように、Rotate後に移動  motoh
   // drawAccessory(sprite, position, ctx);
 
+  unsigned long _t1 = millis();  // ① スプライト描画ここまで
+
   // TODO(meganetaaan): rethink responsibility for transform function
   float scale = ctx->getScale();
   float rotation = ctx->getRotation();
@@ -138,7 +142,7 @@ void Face::draw(DrawContext *ctx) {
     //sprite->pushRotateZoom(tmpSprite, rotation, scale, scale);
     sprite->pushRotateZoom(tmpSprite, M5.Display.width() / 2 + offset_x, M5.Display.height() / 2 + offset_y, rotation, scale, scale);  //motoh
     sprite->deleteSprite();
-    
+
     //Rotateしないようにここでdrawする  motoh
     rect = batteryPos;
     rect.setPosition(rect.getTop(), rect.getLeft() + offset_x);
@@ -149,11 +153,17 @@ void Face::draw(DrawContext *ctx) {
     rect.setPosition(rect.getTop(), rect.getLeft() + offset_x);
     subWindow->draw(tmpSprite, rect, ctx);
 
+    unsigned long _t2 = millis();  // ② LCD転送前
     tmpSprite->pushSprite(&M5.Display, 0, 0);
     tmpSprite->deleteSprite();
+    Serial.printf("draw ①sprite:%lums ②rotate+transfer:%lums total:%lums\n",
+                  _t1 - _t0, millis() - _t2 + (_t2 - _t1), millis() - _t0);
   } else {
+    unsigned long _t2 = millis();  // ② LCD転送前
     sprite->pushSprite(&M5.Display, boundingRect->getLeft(), boundingRect->getTop());
     sprite->deleteSprite();
+    Serial.printf("draw ①sprite:%lums ②transfer:%lums total:%lums\n",
+                  _t1 - _t0, millis() - _t2, millis() - _t0);
   }
   //sprite->deleteSprite();
 }
