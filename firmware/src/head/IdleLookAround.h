@@ -24,11 +24,11 @@ private:
 
     // 継続時間の範囲
     static const unsigned long LOOK_MIN_MS = 1000;
-    static const unsigned long LOOK_MAX_MS = 10000;
+    static const unsigned long LOOK_MAX_MS = 7000;
 
     // サーボ移動角度の絶対値最大（中心からのオフセット）
-    static const int GAZE_X_MAX = 25;  // 水平 ±25度
-    static const int GAZE_Y_MAX = 12;  // 垂直 ±12度
+    static const int GAZE_X_MAX = 70;  // 水平 ±70度
+    static const int GAZE_Y_MAX = 30;  // 垂直 ±30度
 
     void moveToNextRandom();
 };
