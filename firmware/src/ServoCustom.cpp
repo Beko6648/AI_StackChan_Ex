@@ -5,5 +5,6 @@ void ServoCustom::moveToOrigin(){
 }
 
 void ServoCustom::moveToGaze(int gazeX, int gazeY){
-  moveXY(_init_param.servo[AXIS_X].start_degree + gazeX, _init_param.servo[AXIS_Y].start_degree + gazeY, 1000);
+  int angleY = constrain(_init_param.servo[AXIS_Y].start_degree + gazeY, 5, 85);
+  moveXY(_init_param.servo[AXIS_X].start_degree + gazeX, angleY, 1000);
 }
