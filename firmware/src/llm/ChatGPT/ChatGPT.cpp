@@ -307,11 +307,9 @@ void ChatGPT::chat(String text, const char *base64_buf) {
 
 String ChatGPT::execChatGpt(String json_string, String& calledFunc) {
   String response = "";
-  avatar.setExpression(Expression::Doubt);
   avatar.setSpeechFont(&fonts::efontJA_16);
   avatar.setSpeechText("考え中…");
   String ret = https_post_json("https://api.openai.com/v1/chat/completions", json_string.c_str(), root_ca_openai);
-  avatar.setExpression(Expression::Neutral);
   avatar.setSpeechText("");
   Serial.println(ret);
   if(ret != ""){

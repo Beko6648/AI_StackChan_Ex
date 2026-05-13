@@ -45,8 +45,9 @@ extern void sw_tone();
 extern void alarm_tone();
 ///////////////
 
-// static 関数から HeadMotionController にアクセスするためのファイルスコープポインタ
-static HeadMotionController* s_headCtrl = nullptr;
+// static 関数からコントローラ・マネージャにアクセスするためのファイルスコープポインタ
+static HeadMotionController* s_headCtrl    = nullptr;
+static MoodManager*          s_moodManager = nullptr;
 
 
 static void report_batt_level(){
@@ -76,9 +77,10 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
 #endif
 
   // 会話中は頭のきょろきょろを停止して正面を向く
-  if (s_headCtrl) s_headCtrl->stop();
+  if (s_headCtrl)    s_headCtrl->stop();
+  if (s_moodManager) s_moodManager->onConversation();
 
-  avatar.setExpression(Expression::Happy);
+  avatar.setExpression(s_moodManager ? s_moodManager->getDominantExpression() : Expression::Neutral);
   avatar.setSpeechText("御用でしょうか？");
 
   String ret = robot->listen();
@@ -110,6 +112,20 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
   if (s_headCtrl) s_headCtrl->setMotion(new IdleLookAround());
 }
 
+// 自発発話（ユーザー入力なしで気分をもとに LLM → TTS）
+static void spontaneousSpeech() {
+  if (s_headCtrl) s_headCtrl->stop();
+
+  String moodDesc = s_moodManager ? s_moodManager->getMoodDescription() : "普通の気分";
+  String prompt = "あなたはかわいいロボットのスタックちゃんです。あなた自身の気分は「" + moodDesc + "」です。この前提で適当な雑談の一言を発してください。";
+  Serial.println("自発発話: " + prompt);
+
+  robot->chat(prompt);
+  avatar.setSpeechText("");
+
+  if (s_moodManager) s_moodManager->onSpontaneousSpeech();
+  if (s_headCtrl)    s_headCtrl->setMotion(new IdleLookAround());
+}
 
 
 AiStackChanMod::AiStackChanMod(bool _isOffline)
@@ -148,7 +164,8 @@ AiStackChanMod::AiStackChanMod(bool _isOffline)
   }
 
   // アイドル時の頭の動きを設定
-  s_headCtrl = &_headCtrl;
+  s_headCtrl    = &_headCtrl;
+  s_moodManager = &_moodManager;
   _headCtrl.setMotion(new IdleLookAround());
 
 }
@@ -444,6 +461,17 @@ void AiStackChanMod::idle(void)
 
   // 頭の動き更新
   _headCtrl.update();
+
+  // 気分パラメータ更新
+  _moodManager.update();
+
+  // 気分ベースの表情をアイドル時に適用
+  avatar.setExpression(_moodManager.getDominantExpression());
+
+  // 自発発話チェック
+  if (_moodManager.shouldSpeak()) {
+    spontaneousSpeech();
+  }
 
 }
 

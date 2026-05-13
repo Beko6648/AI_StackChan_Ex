@@ -275,7 +275,6 @@ void Robot::speech(String text)
 {
   if(text != ""){
     servo_home = false;
-    avatar.setExpression(Expression::Happy);
 
     tts->stream(text);
 

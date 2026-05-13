@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include "mod/ModBase.h"
 #include "head/HeadMotionController.h"
+#include "mood/MoodManager.h"
 
 class AiStackChanMod: public ModBase{
 private:
@@ -17,6 +18,7 @@ private:
     String avatarText;
     bool isOffline;
     HeadMotionController _headCtrl;  // 頭の動き制御
+    MoodManager _moodManager;        // 気分パラメータ管理
 public:
     AiStackChanMod(bool _isOffline);
 
