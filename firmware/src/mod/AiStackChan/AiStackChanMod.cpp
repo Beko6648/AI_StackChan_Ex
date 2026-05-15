@@ -478,6 +478,9 @@ void AiStackChanMod::idle(void)
 
   // 頭部タッチセンサー処理
   switch (_headTouch.update()) {
+    case HeadTouch::Gesture::LongPress:
+      STT_ChatGPT();
+      break;
     case HeadTouch::Gesture::SwipeForward:
     case HeadTouch::Gesture::SwipeBackward:
       _moodManager.addJoy(0.2f);

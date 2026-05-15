@@ -63,8 +63,10 @@ HeadTouch::Gesture HeadTouch::update() {
     switch (_state) {
         case TouchState::IDLE:
             if (touched) {
-                _state       = TouchState::TOUCHED;
-                _initialPos  = getPosition();
+                _state            = TouchState::TOUCHED;
+                _initialPos       = getPosition();
+                _touchStartMs     = now;
+                _longPressEmitted = false;
                 Serial.printf("[HeadTouch] Press pos=%d\n", _initialPos);
                 return Gesture::Press;
             }
@@ -85,6 +87,10 @@ HeadTouch::Gesture HeadTouch::update() {
                     _state = TouchState::SWIPING;
                     Serial.printf("[HeadTouch] SwipeBackward delta=%d\n", delta);
                     return Gesture::SwipeBackward;
+                } else if (!_longPressEmitted && (now - _touchStartMs) >= LONG_PRESS_MS) {
+                    _longPressEmitted = true;
+                    Serial.println("[HeadTouch] LongPress");
+                    return Gesture::LongPress;
                 }
             }
             break;
