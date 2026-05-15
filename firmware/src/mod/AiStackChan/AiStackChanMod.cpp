@@ -478,12 +478,10 @@ void AiStackChanMod::idle(void)
 
   // 頭部タッチセンサー処理
   switch (_headTouch.update()) {
-    case HeadTouch::Gesture::DoubleTap:
-      STT_ChatGPT();
-      break;
-    case HeadTouch::Gesture::Stroke:
+    case HeadTouch::Gesture::SwipeForward:
+    case HeadTouch::Gesture::SwipeBackward:
       _moodManager.addJoy(0.2f);
-      Serial.printf("[HeadTouch] Joy -> %.2f\n", _moodManager.getJoy());
+      Serial.printf("[HeadTouch] Swipe Joy -> %.2f\n", _moodManager.getJoy());
       break;
     default:
       break;
