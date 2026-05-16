@@ -62,9 +62,10 @@ private:
     static constexpr float SLEEPINESS_RATE      = 0.8f / 600.0f;
     static constexpr float SLEEPINESS_THRESHOLD = 0.8f;
 
-    // joy/trust の減衰速度【約10分で±1.0→0.0】
+    // joy の減衰速度【約10分で±1.0→0.0】
     static constexpr float JOY_DECAY_RATE   = 1.0f / 600.0f;
-    static constexpr float TRUST_DECAY_RATE = 1.0f / 600.0f;
+    // trust は時間で変化しない（信頼・怒りは持続する）
+    static constexpr float TRUST_DECAY_RATE = 0.0f;
 
     // 感情軸の閾値
     static constexpr float MOOD_THRESHOLD = 0.4f;
