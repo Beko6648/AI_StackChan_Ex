@@ -69,8 +69,8 @@ private:
     static constexpr float WANT_TO_TALK_THRESHOLD = 1.0f;
     static constexpr float WANT_TO_TALK_RATE      = 1.0f / 300.0f;
 
-    // 眠気（テスト用: 約1分で閾値に到達）
-    static constexpr float SLEEPINESS_RATE      = 0.8f / 60.0f;
+    // 眠気（約10分で閾値に到達）
+    static constexpr float SLEEPINESS_RATE      = 0.8f / 600.0f;
     static constexpr float SLEEPINESS_THRESHOLD = 0.8f;
 
     // joy の減衰速度【約10分で±1.0→0.0】
