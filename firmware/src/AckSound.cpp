@@ -11,20 +11,20 @@ struct ExprGroup {
     Expression    expression;
 };
 
-static const char* happy_files[]   = { "happy_un",     "happy_hai"   };
-static const char* neutral_files[] = { "neutral_fumu", "neutral_ee", "neutral_umu" };
-static const char* sad_files[]     = { "sad_un",        "sad_maa"     };
-static const char* angry_files[]   = { "angry_haa",     "angry_eee"   };
-static const char* doubt_files[]   = { "doubt_nn",      "doubt_eeto"  };
-static const char* sleepy_files[]  = { "sleepy_n",      "sleepy_uun"  };
+static const char* happy_files[]   = { "happy_hai"                   };
+static const char* neutral_files[] = { "neutral_hai"                 };
+static const char* sad_files[]     = { "sad_uun"                     };
+static const char* angry_files[]   = { "angry_eee"                   };
+static const char* doubt_files[]   = { "doubt_ettoo", "doubt_uun"    };
+static const char* sleepy_files[]  = { "sleepy_uun"                  };
 
 static const ExprGroup groups[] = {
-    { happy_files,   2, Expression::Happy   },
-    { neutral_files, 3, Expression::Neutral },
-    { sad_files,     2, Expression::Sad     },
-    { angry_files,   2, Expression::Angry   },
+    { happy_files,   1, Expression::Happy   },
+    { neutral_files, 1, Expression::Neutral },
+    { sad_files,     1, Expression::Sad     },
+    { angry_files,   1, Expression::Angry   },
     { doubt_files,   2, Expression::Doubt   },
-    { sleepy_files,  2, Expression::Sleepy  },
+    { sleepy_files,  1, Expression::Sleepy  },
 };
 static const int N_GROUPS = sizeof(groups) / sizeof(groups[0]);
 
