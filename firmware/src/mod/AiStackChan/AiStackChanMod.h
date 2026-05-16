@@ -21,6 +21,9 @@ private:
     HeadMotionController _headCtrl;   // 頭の動き制御
     MoodManager          _moodManager; // 気分パラメータ管理
     HeadTouch            _headTouch;   // 頭部タッチセンサー
+    unsigned long        _petExpressionUntilMs = 0;  // 撫で時の表情上書き期限
+
+    static constexpr unsigned long PET_EXPRESSION_DURATION_MS = 2000;
 public:
     AiStackChanMod(bool _isOffline);
 

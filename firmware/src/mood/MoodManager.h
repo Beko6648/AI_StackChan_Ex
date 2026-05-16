@@ -40,7 +40,8 @@ public:
     float getSleepiness() const { return _sleepiness; }
     float getWantToTalk() const { return _wantToTalk; }
 
-    void addJoy(float delta) { _joy = clamp(_joy + delta, -1.0f, 1.0f); }
+    void addJoy(float delta)   { _joy   = clamp(_joy   + delta, -1.0f, 1.0f); }
+    void addTrust(float delta) { _trust = clamp(_trust + delta, -1.0f, 1.0f); }
 
 private:
     float _joy;
@@ -50,16 +51,20 @@ private:
 
     unsigned long _lastUpdateMs;
 
-    // パラメータ更新の最小インターバル（ms）【テスト用: 10秒】
-    static constexpr unsigned long UPDATE_INTERVAL_MS = 10000;
+    // パラメータ更新の最小インターバル（ms）
+    static constexpr unsigned long UPDATE_INTERVAL_MS = 30000;
 
-    // wantToTalk が閾値を超えたら自発発話【テスト用: 約2分で0→0.8】
-    static constexpr float WANT_TO_TALK_THRESHOLD = 0.8f;
-    static constexpr float WANT_TO_TALK_RATE      = 0.8f / 120.0f;
+    // wantToTalk が閾値を超えたら自発発話（約5分で自発発話）
+    static constexpr float WANT_TO_TALK_THRESHOLD = 1.0f;
+    static constexpr float WANT_TO_TALK_RATE      = 1.0f / 300.0f;
 
-    // 眠気【テスト用: 約3分で0→0.5】
-    static constexpr float SLEEPINESS_RATE      = 0.5f / 180.0f;
-    static constexpr float SLEEPINESS_THRESHOLD = 0.5f;
+    // 眠気（約10分で閾値に到達）
+    static constexpr float SLEEPINESS_RATE      = 0.8f / 600.0f;
+    static constexpr float SLEEPINESS_THRESHOLD = 0.8f;
+
+    // joy/trust の減衰速度【約10分で±1.0→0.0】
+    static constexpr float JOY_DECAY_RATE   = 1.0f / 600.0f;
+    static constexpr float TRUST_DECAY_RATE = 1.0f / 600.0f;
 
     // 感情軸の閾値
     static constexpr float MOOD_THRESHOLD = 0.4f;
@@ -68,5 +73,8 @@ private:
         return v < lo ? lo : (v > hi ? hi : v);
     }
 };
+
+// LLM レスポンスから joy/trust を更新するためのグローバルポインタ
+extern MoodManager* g_moodManager;
 
 #endif  // _MOOD_MANAGER_H

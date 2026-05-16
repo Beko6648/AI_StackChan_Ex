@@ -1,5 +1,7 @@
 #include "MoodManager.h"
 
+MoodManager* g_moodManager = nullptr;
+
 MoodManager::MoodManager()
     : _joy(0.0f)
     , _trust(0.0f)
@@ -23,6 +25,16 @@ void MoodManager::update() {
 
     _wantToTalk = clamp(_wantToTalk + WANT_TO_TALK_RATE * deltaSeconds, 0.0f, 1.0f);
     _sleepiness = clamp(_sleepiness + SLEEPINESS_RATE * deltaSeconds, 0.0f, 1.0f);
+
+    // joy/trust を中立方向へ減衰
+    float joyDecay   = JOY_DECAY_RATE   * deltaSeconds;
+    float trustDecay = TRUST_DECAY_RATE * deltaSeconds;
+    if      (_joy >  joyDecay)   _joy -= joyDecay;
+    else if (_joy < -joyDecay)   _joy += joyDecay;
+    else                         _joy  = 0.0f;
+    if      (_trust >  trustDecay) _trust -= trustDecay;
+    else if (_trust < -trustDecay) _trust += trustDecay;
+    else                           _trust  = 0.0f;
 
     Serial.printf("[MoodManager] joy=%.2f trust=%.2f sleepiness=%.2f wantToTalk=%.2f\n",
                   _joy, _trust, _sleepiness, _wantToTalk);

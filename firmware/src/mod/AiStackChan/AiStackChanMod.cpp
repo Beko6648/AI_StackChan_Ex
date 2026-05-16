@@ -17,6 +17,8 @@
 #include "share/SDUtil.h"
 #include "AckSound.h"
 #include "StackChanMind.h"
+#include "mood/MoodManager.h"
+#include "llm/ChatHistory.h"
 #include "head/IdleLookAround.h"
 
 extern StackchanExConfig system_config;
@@ -117,7 +119,12 @@ static void spontaneousSpeech() {
   if (s_headCtrl) s_headCtrl->stop();
 
   String moodDesc = s_moodManager ? s_moodManager->getMoodDescription() : "普通の気分";
-  String prompt = "あなたはかわいいロボットのスタックちゃんです。あなた自身の気分は「" + moodDesc + "」です。この前提で適当な雑談の一言を発してください。";
+  String prompt;
+  if (chatHistory.get_size() > 0) {
+    prompt = "あなたはかわいいロボットのスタックちゃんです。あなた自身の気分は「" + moodDesc + "」です。過去の会話の話題を踏まえつつ、自然に話しかけてください。";
+  } else {
+    prompt = "あなたはかわいいロボットのスタックちゃんです。あなた自身の気分は「" + moodDesc + "」です。この前提で自由に話しかけてください。";
+  }
   Serial.println("自発発話: " + prompt);
 
   robot->chat(prompt);
@@ -166,6 +173,7 @@ AiStackChanMod::AiStackChanMod(bool _isOffline)
   // アイドル時の頭の動きを設定
   s_headCtrl    = &_headCtrl;
   s_moodManager = &_moodManager;
+  g_moodManager = &_moodManager;
 
   // 頭部タッチセンサー初期化
   _headTouch.begin();
@@ -468,8 +476,10 @@ void AiStackChanMod::idle(void)
   // 気分パラメータ更新
   _moodManager.update();
 
-  // 気分ベースの表情をアイドル時に適用
-  avatar.setExpression(_moodManager.getDominantExpression());
+  // 気分ベースの表情をアイドル時に適用（撫で中は上書きしない）
+  if (millis() >= _petExpressionUntilMs) {
+    avatar.setExpression(_moodManager.getDominantExpression());
+  }
 
   // 自発発話チェック
   if (_moodManager.shouldSpeak()) {
@@ -483,8 +493,16 @@ void AiStackChanMod::idle(void)
       break;
     case HeadTouch::Gesture::SwipeForward:
     case HeadTouch::Gesture::SwipeBackward:
-      _moodManager.addJoy(0.2f);
-      Serial.printf("[HeadTouch] Swipe Joy -> %.2f\n", _moodManager.getJoy());
+      _moodManager.addJoy(0.1f);
+      _moodManager.addTrust(0.05f);
+      {
+        Expression current = _moodManager.getDominantExpression();
+        bool isNegative = (current == Expression::Sad || current == Expression::Angry);
+        Expression petExpr = isNegative ? Expression::Neutral : Expression::Happy;
+        avatar.setExpression(petExpr);
+        _petExpressionUntilMs = millis() + PET_EXPRESSION_DURATION_MS;
+      }
+      Serial.printf("[HeadTouch] Swipe joy=%.2f trust=%.2f\n", _moodManager.getJoy(), _moodManager.getTrust());
       break;
     default:
       break;

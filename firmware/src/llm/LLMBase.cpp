@@ -9,7 +9,7 @@
 
 
 // 保存する質問と回答の最大数
-const int MAX_HISTORY = 20;
+const int MAX_HISTORY = 10;
 
 // 過去の質問と回答を保存するデータ構造
 ChatHistory chatHistory(MAX_HISTORY);   // TODO: 本当はLLMBaseのメンバ変数にしたい

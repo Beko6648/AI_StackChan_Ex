@@ -13,6 +13,7 @@
 #include "MCPClient.h"
 #include "Robot.h"
 #include "StackChanMind.h"
+#include "mood/MoodManager.h"
 
 using namespace m5avatar;
 extern Avatar avatar;
@@ -227,10 +228,13 @@ void ChatGPT::chat(String text, const char *base64_buf) {
     {
       String emotionInstr =
         String("あなたの現在の感情は「") + stackChanMind.emotionToString() + "」です。"
-        "返答の末尾に会話内容を踏まえた次の感情を付与してください。"
-        "形式: [META]{\"emotion\": \"happy\"}[/META] "
+        "返答の末尾に会話内容を踏まえた次の感情と気分変化を付与してください。"
+        "形式: [META]{\"emotion\": \"happy\", \"joy\": 0.3, \"trust\": 0.1}[/META] "
         "※必ず半角角括弧 [ と ] を使用すること。全角【】は不可。"
-        "感情の種類: happy(喜び) neutral(普通) sad(悲しみ) angry(怒り) doubt(疑問) sleepy(眠気)";
+        "感情の種類: happy(喜び) neutral(普通) sad(悲しみ) angry(怒り) doubt(疑問) sleepy(眠気) "
+        "joy は楽しさの変化量（-1.0〜+1.0、楽しい会話なら正、悲しい内容なら負）。"
+        "trust は信頼感の変化量（-1.0〜+1.0、穏やかな会話なら正、怒りを感じたら負）。"
+        "変化が小さいときは 0.0 に近い値にすること。";
       String cur = String((const char*)chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"]);
       chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"] = cur + " " + emotionInstr;
     }
@@ -355,6 +359,12 @@ String ChatGPT::execChatGpt(String json_string, String& calledFunc) {
             if (!deserializeJson(metaDoc, metaContent)) {
               const char* emotion = metaDoc["emotion"];
               if (emotion) stackChanMind.setEmotion(String(emotion));
+              if (g_moodManager) {
+                if (metaDoc.containsKey("joy"))   g_moodManager->addJoy(metaDoc["joy"].as<float>());
+                if (metaDoc.containsKey("trust"))  g_moodManager->addTrust(metaDoc["trust"].as<float>());
+                Serial.printf("[META] joy=%.2f trust=%.2f\n",
+                              g_moodManager->getJoy(), g_moodManager->getTrust());
+              }
             }
             response = response.substring(0, metaStart) + response.substring(metaEnd + 7);
             response.trim();
