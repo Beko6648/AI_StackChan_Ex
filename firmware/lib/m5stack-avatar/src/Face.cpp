@@ -128,9 +128,8 @@ void Face::draw(DrawContext *ctx) {
 
   // TODO(meganetaaan): rethink responsibility for transform function
   float scale = ctx->getScale();
-  float rotation = ctx->getRotation();
 
-  if (scale != 1.0 || rotation != 0) {
+  if (scale != 1.0) {
     tmpSprite->setBitmapColor(ctx->getColorPalette()->get(COLOR_PRIMARY),
       ctx->getColorPalette()->get(COLOR_BACKGROUND));
     if (ctx->getColorDepth() != 1) {
@@ -138,8 +137,7 @@ void Face::draw(DrawContext *ctx) {
     } else {
       tmpSprite->fillSprite(0);
     }
-    //sprite->pushRotateZoom(tmpSprite, rotation, scale, scale);
-    sprite->pushRotateZoom(tmpSprite, M5.Display.width() / 2 + offset_x, M5.Display.height() / 2 + offset_y, rotation, scale, scale);  //motoh
+    sprite->pushRotateZoom(tmpSprite, M5.Display.width() / 2 + offset_x, M5.Display.height() / 2 + offset_y, 0, scale, scale);  //motoh
 
     //Rotateしないようにここでdrawする  motoh
     rect = batteryPos;
