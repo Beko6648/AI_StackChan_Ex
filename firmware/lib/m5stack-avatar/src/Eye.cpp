@@ -21,6 +21,9 @@ void Eye::draw(M5Canvas *spi, BoundingRect rect, DrawContext *ctx) {
   uint16_t primaryColor = ctx->getColorDepth() == 1 ? 1 : ctx->getColorPalette()->get(COLOR_PRIMARY);
   uint16_t backgroundColor = ctx->getColorDepth() == 1 ? 0 : ctx->getColorPalette()->get(COLOR_BACKGROUND);
 
+  // Sleeping は openRatio=0（まばたき中）と同じ閉じ目パスを再利用する
+  if (exp == Expression::Sleeping) openRatio = 0;
+
   if (openRatio > 0) {
     spi->fillCircle(x + offsetX, y + offsetY, r, primaryColor);
     // TODO(meganetaaan): Refactor

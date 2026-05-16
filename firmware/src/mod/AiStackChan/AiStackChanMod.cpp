@@ -476,6 +476,25 @@ void AiStackChanMod::idle(void)
   // 気分パラメータ更新
   _moodManager.update();
 
+  // 睡眠状態の処理
+  if (_moodManager.isSleeping()) {
+    avatar.setExpression(Expression::Sleeping);
+    _headCtrl.stop();
+    servo_home = true;
+
+    // 起床: HeadTouch のいずれかのジェスチャーで復帰
+    HeadTouch::Gesture g = _headTouch.update();
+    if (g == HeadTouch::Gesture::LongPress ||
+        g == HeadTouch::Gesture::SwipeForward ||
+        g == HeadTouch::Gesture::SwipeBackward) {
+      Serial.println("[Sleep] Wake up");
+      _moodManager.onWakeUp();
+      servo_home = false;
+      _headCtrl.setMotion(new IdleLookAround());
+    }
+    return;
+  }
+
   // 気分ベースの表情をアイドル時に適用（撫で中は上書きしない）
   if (millis() >= _petExpressionUntilMs) {
     avatar.setExpression(_moodManager.getDominantExpression());

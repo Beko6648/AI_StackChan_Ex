@@ -37,6 +37,8 @@ void Eyeblow::draw(M5Canvas *spi, BoundingRect rect, DrawContext *ctx) {
     int y1 = y - height / 2;
     if (exp == Expression::Happy) {
       y1 = y1 - 5;
+    } else if (exp == Expression::Sleeping) {
+      y1 = y1 + 5;
     }
     spi->fillRect(x1, y1, width, height, primaryColor);
   }

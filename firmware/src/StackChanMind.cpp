@@ -14,7 +14,8 @@ const StackChanMind::EmotionEntry StackChanMind::_emotionTable[] = {
     { "sad",     Expression::Sad     },
     { "angry",   Expression::Angry   },
     { "doubt",   Expression::Doubt   },
-    { "sleepy",  Expression::Sleepy  },
+    { "sleepy",  Expression::Sleepy   },
+    { "sleeping", Expression::Sleeping },
 };
 const int StackChanMind::_emotionTableSize =
     sizeof(StackChanMind::_emotionTable) / sizeof(StackChanMind::_emotionTable[0]);

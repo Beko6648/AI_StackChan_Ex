@@ -32,14 +32,24 @@
 
 最も強いパラメータが表情を決定：
 
-| 条件 | 表情 |
+| 条件 | 表情 | エフェクト |
+|---|---|---|
+| sleepiness >= 1.0 | Sleeping（就寝） | Zzz（右上→左下・大中小） |
+| sleepiness が最大かつ >= 0.8 | Sleepy | 泡マーク |
+| joy が最大かつ >= 0.6 | Happy | ハート |
+| joy が最大かつ <= -0.6 | Sad | 寒さマーク |
+| trust が最大かつ >= 0.6 | Happy | ハート |
+| trust が最大かつ <= -0.6 | Angry | 怒りマーク |
+| それ以外 | Neutral | なし |
+
+### 就寝・起床
+
+| 項目 | 内容 |
 |---|---|
-| sleepiness が最大かつ > 0.8 | Sleepy |
-| joy が最大かつ > 0.4 | Happy |
-| joy が最大かつ < -0.4 | Sad |
-| trust が最大かつ > 0.4 | Happy |
-| trust が最大かつ < -0.4 | Angry |
-| それ以外 | Neutral |
+| 就寝トリガー | sleepiness >= 1.0 |
+| 就寝中の動作 | Sleeping 表情・頭を正面に固定・きょろきょろ停止・自発発話/音声認識を無効化 |
+| 起床トリガー | HeadTouch（LongPress / SwipeForward / SwipeBackward）いずれか |
+| 起床時の処理 | sleepiness・wantToTalk をゼロリセット・負の joy/trust を半分回復（悲しみ・怒りが覚める）・きょろきょろ再開 |
 
 ### 自発発話プロンプト
 

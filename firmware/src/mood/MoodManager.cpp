@@ -60,13 +60,13 @@ Expression MoodManager::getDominantExpression() const {
 
     // 最も強いパラメータを特定して表情を決定
     if (sleepStrength >= joyStrength && sleepStrength >= trustStrength) {
-        if (_sleepiness > SLEEPINESS_THRESHOLD) return Expression::Sleepy;
+        if (_sleepiness >= SLEEPINESS_THRESHOLD) return Expression::Sleepy;
     } else if (joyStrength >= trustStrength) {
-        if (_joy >  MOOD_THRESHOLD) return Expression::Happy;
-        if (_joy < -MOOD_THRESHOLD) return Expression::Sad;
+        if (_joy >=  MOOD_THRESHOLD) return Expression::Happy;
+        if (_joy <= -MOOD_THRESHOLD) return Expression::Sad;
     } else {
-        if (_trust >  MOOD_THRESHOLD) return Expression::Happy;
-        if (_trust < -MOOD_THRESHOLD) return Expression::Angry;
+        if (_trust >=  MOOD_THRESHOLD) return Expression::Happy;
+        if (_trust <= -MOOD_THRESHOLD) return Expression::Angry;
     }
     return Expression::Neutral;
 }

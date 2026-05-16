@@ -72,6 +72,23 @@ class Effect final : public Drawable {
     drawHeartMark(spi, x, y, r, color, 0);
   }
 
+  void drawZzzMark(M5Canvas *spi, uint32_t x, uint32_t y, uint16_t color,
+                   float offset) {
+    // 呼吸アニメーションと同じ周期（AVATAR_BREATH_PERIOD_MS = 5000ms）で同期
+    const uint32_t period = 5000;
+    float phase = (millis() % period) * 2.0 * M_PI / period;
+    int dy1 = floor(4 * sin(phase));
+    int dy2 = floor(4 * sin(phase + 2.0 * M_PI / 3.0));
+    int dy3 = floor(4 * sin(phase + 4.0 * M_PI / 3.0));
+    spi->setTextColor(color);
+    spi->setTextSize(3);
+    spi->drawString("Z", x + 10, y - 20 + dy1);
+    spi->setTextSize(2);
+    spi->drawString("z", x, y + dy2);
+    spi->setTextSize(1);
+    spi->drawString("z", x - 10, y + 16 + dy3);
+  }
+
   void drawHeartMark(M5Canvas *spi, uint32_t x, uint32_t y, uint32_t r,
                  uint16_t color, float offset) {
     r = r + floor(r * 0.4 * offset);
@@ -110,6 +127,9 @@ class Effect final : public Drawable {
       case Expression::Sleepy:
         drawBubbleMark(spi, 290, 40, 10, primaryColor, offset);
         drawBubbleMark(spi, 270, 52, 6, primaryColor, -offset);
+        break;
+      case Expression::Sleeping:
+        drawZzzMark(spi, 272, 60, primaryColor, offset);
         break;
       default:
         // noop

@@ -29,6 +29,17 @@ public:
     // wantToTalk が閾値を超えたら true
     bool shouldSpeak() const;
 
+    // sleepiness が最大（1.0）に達したら true
+    bool isSleeping() const { return _sleepiness >= 1.0f; }
+
+    // 起床処理（sleepiness をリセット・負の joy/trust を半分回復）
+    void onWakeUp() {
+        _sleepiness = 0.0f;
+        _wantToTalk = 0.0f;
+        if (_joy   < 0.0f) _joy   *= 0.5f;
+        if (_trust < 0.0f) _trust *= 0.5f;
+    }
+
     // 3パラメータのうち最も強いものに対応する表情を返す
     Expression getDominantExpression() const;
 
@@ -58,8 +69,8 @@ private:
     static constexpr float WANT_TO_TALK_THRESHOLD = 1.0f;
     static constexpr float WANT_TO_TALK_RATE      = 1.0f / 300.0f;
 
-    // 眠気（約10分で閾値に到達）
-    static constexpr float SLEEPINESS_RATE      = 0.8f / 600.0f;
+    // 眠気（テスト用: 約1分で閾値に到達）
+    static constexpr float SLEEPINESS_RATE      = 0.8f / 60.0f;
     static constexpr float SLEEPINESS_THRESHOLD = 0.8f;
 
     // joy の減衰速度【約10分で±1.0→0.0】
@@ -68,7 +79,7 @@ private:
     static constexpr float TRUST_DECAY_RATE = 0.0f;
 
     // 感情軸の閾値
-    static constexpr float MOOD_THRESHOLD = 0.4f;
+    static constexpr float MOOD_THRESHOLD = 0.6f;
 
     static float clamp(float v, float lo, float hi) {
         return v < lo ? lo : (v > hi ? hi : v);
