@@ -32,6 +32,8 @@ public:
     // sleepiness が最大（1.0）に達したら true
     bool isSleeping() const { return _sleepiness >= 1.0f; }
 
+    static constexpr float SLEEPINESS_THRESHOLD = 0.8f;
+
     // 起床処理（sleepiness をリセット・負の joy/trust を半分回復）
     void onWakeUp() {
         _sleepiness = 0.0f;
@@ -70,8 +72,7 @@ private:
     static constexpr float WANT_TO_TALK_RATE      = 1.0f / 300.0f;
 
     // 眠気（約10分で閾値に到達）
-    static constexpr float SLEEPINESS_RATE      = 0.8f / 600.0f;
-    static constexpr float SLEEPINESS_THRESHOLD = 0.8f;
+    static constexpr float SLEEPINESS_RATE = 0.8f / 600.0f;
 
     // joy の減衰速度【約10分で±1.0→0.0】
     static constexpr float JOY_DECAY_RATE   = 1.0f / 600.0f;

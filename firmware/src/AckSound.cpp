@@ -42,6 +42,17 @@ static int resolveSpeakerId(const ex_config_s& cfg) {
     return 3;  // フォールバック
 }
 
+static void playEventSound(const ex_config_s& cfg, const char** files, int count, Expression expr) {
+    int speakerId    = resolveSpeakerId(cfg);
+    const char* file = files[random(count)];
+
+    char path[64];
+    snprintf(path, sizeof(path), "/ack/%d/%s.mp3", speakerId, file);
+
+    Serial.printf("AckSound: %s\n", path);
+    playMP3SDWithExpression(path, expr);
+}
+
 void playAckSound(const ex_config_s& cfg) {
     int speakerId        = resolveSpeakerId(cfg);
     const ExprGroup* grp = findGroup(stackChanMind.getEmotion());
@@ -52,4 +63,20 @@ void playAckSound(const ex_config_s& cfg) {
 
     Serial.printf("AckSound: %s\n", path);
     playMP3SDWithExpression(path, grp->expression);
+}
+
+static const char* yawn_files[]   = { "yawn_fuwa"                              };
+static const char* sleep_files[]  = { "sleep_oyasumi", "sleep_oyasuminasai"    };
+static const char* wakeup_files[] = { "wakeup_ohayou", "wakeup_ohayougozaimasu" };
+
+void playYawnSound(const ex_config_s& cfg) {
+    playEventSound(cfg, yawn_files, 1, Expression::Sleepy);
+}
+
+void playSleepSound(const ex_config_s& cfg) {
+    playEventSound(cfg, sleep_files, 2, Expression::Sleeping);
+}
+
+void playWakeupSound(const ex_config_s& cfg) {
+    playEventSound(cfg, wakeup_files, 2, Expression::Neutral);
 }

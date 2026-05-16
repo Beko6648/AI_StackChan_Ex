@@ -476,8 +476,18 @@ void AiStackChanMod::idle(void)
   // 気分パラメータ更新
   _moodManager.update();
 
+  // あくびトリガー（Sleepy になった瞬間に一度だけ）
+  if (_moodManager.getSleepiness() >= MoodManager::SLEEPINESS_THRESHOLD && !_yawnPlayed) {
+    _yawnPlayed = true;
+    playYawnSound(system_config.getExConfig());
+  }
+
   // 睡眠状態の処理
   if (_moodManager.isSleeping()) {
+    if (!_sleepSoundPlayed) {
+      _sleepSoundPlayed = true;
+      playSleepSound(system_config.getExConfig());
+    }
     avatar.setExpression(Expression::Sleeping);
     _headCtrl.stop();
     servo_home = true;
@@ -488,7 +498,10 @@ void AiStackChanMod::idle(void)
         g == HeadTouch::Gesture::SwipeForward ||
         g == HeadTouch::Gesture::SwipeBackward) {
       Serial.println("[Sleep] Wake up");
+      playWakeupSound(system_config.getExConfig());
       _moodManager.onWakeUp();
+      _yawnPlayed       = false;
+      _sleepSoundPlayed = false;
       servo_home = false;
       _headCtrl.setMotion(new IdleLookAround());
     }
