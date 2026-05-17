@@ -28,7 +28,8 @@ bool loadCharacter(const String& name, CharacterData& data) {
     }
 
     data.systemPrompt        = doc["system_prompt"].as<String>();
-    data.conversationPrompt  = doc["conversation_prompt"].as<String>();
+    data.talkPrompt  = doc["talk_prompt"].as<String>();
+    data.selfTalkPrompt      = doc["self_talk_prompt"].as<String>();
     data.voice               = doc["voice"].as<String>();
     data.memory              = doc["memory"] | false;
 

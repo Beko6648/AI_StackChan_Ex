@@ -39,7 +39,8 @@ public:   //本当はprotectedにしたいところだがコールバック関�
 
 protected:
   bool _enableMemory;
-  String _conversationPrompt = "";
+  String _talkPrompt = "";
+  String _selfTalkPrompt     = "";
   bool save_system_prompt_to_spiffs();
   bool load_system_prompt_from_spiffs();
 
@@ -62,8 +63,11 @@ public:
   bool enableMemory() { return _enableMemory; };
   void enableMemory(bool isEnable) { _enableMemory = isEnable; };
 
-  String getConversationPrompt() const { return _conversationPrompt; };
-  void setConversationPrompt(const String& prompt) { _conversationPrompt = prompt; };
+  String getTalkPrompt() const { return _talkPrompt; };
+  void setTalkPrompt(const String& prompt) { _talkPrompt = prompt; };
+
+  String getSelfTalkPrompt() const { return _selfTalkPrompt; };
+  void setSelfTalkPrompt(const String& prompt) { _selfTalkPrompt = prompt; };
 
   // for async TTS
   //

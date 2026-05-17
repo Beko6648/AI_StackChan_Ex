@@ -24,7 +24,7 @@ public:
     void onConversation();
 
     // 自発発話後に呼ぶ（wantToTalk をリセット）
-    void onSpontaneousSpeech();
+    void onSelfTalk();
 
     // wantToTalk が閾値を超えたら true
     bool shouldSpeak() const;

@@ -115,22 +115,34 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
 }
 
 // 自発発話（ユーザー入力なしで気分をもとに LLM → TTS）
-static void spontaneousSpeech() {
+static void selfTalk() {
   if (s_headCtrl) s_headCtrl->stop();
 
   String moodDesc = s_moodManager ? s_moodManager->getMoodDescription() : "普通の気分";
+  String selfTalkPrompt = robot->llm->getSelfTalkPrompt();
   String prompt;
-  if (chatHistory.get_size() > 0) {
-    prompt = "あなたはかわいいロボットのスタックちゃんです。あなた自身の気分は「" + moodDesc + "」です。過去の会話の話題を踏まえつつ、自然に話しかけてください。";
+  if (!selfTalkPrompt.isEmpty()) {
+    // キャラクターファイルの self_talk_prompt を使用
+    prompt = selfTalkPrompt;
+    if (chatHistory.get_size() > 0) {
+      prompt += "（現在の気分: " + moodDesc + "。過去の会話の話題を自然に引用してもよい）";
+    } else {
+      prompt += "（現在の気分: " + moodDesc + "）";
+    }
   } else {
-    prompt = "あなたはかわいいロボットのスタックちゃんです。あなた自身の気分は「" + moodDesc + "」です。この前提で自由に話しかけてください。";
+    // フォールバック
+    if (chatHistory.get_size() > 0) {
+      prompt = "あなたはかわいいロボットのスタックちゃんです。気分は「" + moodDesc + "」です。過去の会話の話題を踏まえつつ、自然に話しかけてください。";
+    } else {
+      prompt = "あなたはかわいいロボットのスタックちゃんです。気分は「" + moodDesc + "」です。この前提で自由に話しかけてください。";
+    }
   }
   Serial.println("自発発話: " + prompt);
 
   robot->chat(prompt);
   avatar.setSpeechText("");
 
-  if (s_moodManager) s_moodManager->onSpontaneousSpeech();
+  if (s_moodManager) s_moodManager->onSelfTalk();
   if (s_headCtrl)    s_headCtrl->setMotion(new IdleLookAround());
 }
 
@@ -515,7 +527,7 @@ void AiStackChanMod::idle(void)
 
   // 自発発話チェック
   if (_moodManager.shouldSpeak()) {
-    spontaneousSpeech();
+    selfTalk();
   }
 
   // 頭部タッチセンサー処理

@@ -237,7 +237,7 @@ void ChatGPT::chat(String text, const char *base64_buf) {
         "変化が小さいときは 0.0 に近い値にすること。";
       String cur = String((const char*)chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"]);
       String appended = cur;
-      if (!_conversationPrompt.isEmpty()) appended += " " + _conversationPrompt;
+      if (!_talkPrompt.isEmpty()) appended += " " + _talkPrompt;
       appended += " " + emotionInstr;
       chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"] = appended;
     }

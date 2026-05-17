@@ -45,7 +45,7 @@ void MoodManager::onConversation() {
     _sleepiness = clamp(_sleepiness - 0.3f, 0.0f, 1.0f);
 }
 
-void MoodManager::onSpontaneousSpeech() {
+void MoodManager::onSelfTalk() {
     _wantToTalk = 0.0f;
 }
 
