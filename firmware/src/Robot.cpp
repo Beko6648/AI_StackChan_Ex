@@ -89,6 +89,7 @@ Robot::Robot(StackchanExConfig& config) : m_config(config)
     if (llm && loadCharacter(config.getExConfig().character.name, charData)) {
       llm->save_userRole(charData.systemPrompt);
       llm->enableMemory(charData.memory);
+      llm->load_role();  // enableMemory 変更後に InitBuffer を再構築
       if (!charData.voice.isEmpty()) {
         ex_config_s exConfig = config.getExConfig();
         exConfig.tts.voice = charData.voice;
