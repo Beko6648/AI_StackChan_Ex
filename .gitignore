@@ -1,2 +1,5 @@
 # APIキー・パスワード等の個人情報を含む設定ファイル
 Copy-to-SD/yaml/SC_SecConfig.yaml
+
+# Claude Code の個人設定（環境依存・権限設定を含む）
+.claude/
