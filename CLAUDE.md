@@ -82,7 +82,7 @@ $log | Select-String -Pattern "selfTalk|自発発話|\[META\]|\[Character\]|choi
 
 ### WebAPI を使った動作確認フロー
 
-書き込み後、シリアル監視の前に WebAPI で WiFi 接続を確認・再起動できる。デバイスのIPアドレスは通常 `192.168.1.114`。
+書き込み後、シリアル監視の前に WebAPI で WiFi 接続を確認・再起動できる。デバイスのIPアドレスは通常 `192.168.1.114`（環境依存。BtnC を押すと画面にQRコードとIPが表示される）。
 
 ```powershell
 # WiFi接続確認
@@ -371,6 +371,75 @@ Firmware extracts emotion, joy, and trust values. Emotion is applied to Avatar v
 - **CoreS3 M5Unified**: Version 0.1.17 (not latest) for compatibility; Core2 uses 0.2.7
 - **Wake word**: Not supported on AtomS3R (SimpleVox disabled)
 
+### HeadTouch Sensor
+
+- **デバイス**: Si12T 静電容量式 3ゾーンタッチセンサー
+- **I2C**: アドレス 0x68、SDA=G12、SCL=G11
+- **ジェスチャー**:
+  - `LongPress`（800ms）→ 音声認識開始
+  - `SwipeForward` / `SwipeBackward` → joy +0.1 / trust +0.05・表情2秒変化
+
+### SD カードのファイル構造
+
+```
+/ack/{speakerId}/
+  {expression}_{romaji}.mp3   # 相槌・あくび・就寝・起床音声
+  例: happy_hai.mp3 / yawn_fuwa.mp3 / sleep_oyasumi.mp3
+
+/characters/{name}.yaml       # キャラクター定義
+/yaml/SC_BasicConfig.yaml
+/yaml/SC_SecConfig.yaml
+/app/AiStackChanEx/SC_ExConfig.yaml
+```
+
+### SPIFFS のシステムプロンプト構造
+
+```
+messages[0] → キャラクターロール（character YAML の system_prompt）
+messages[1] → システムロール（memory指示 + talk_prompt + 感情指示）
+messages[2] → User Info（長期記憶の要約テキスト）
+```
+
+### 会話履歴
+
+- `MAX_HISTORY = 10`（5往復）で古いものから自動削除
+
+### MoodManager パラメータ
+
+| パラメータ | 値 | 意味 |
+|---|---|---|
+| UPDATE_INTERVAL_MS | 30000 | 更新周期（ms） |
+| WANT_TO_TALK_THRESHOLD | 1.0 | 自発発話トリガー閾値 |
+| WANT_TO_TALK_RATE | 1.0/300.0 | 増加レート（約5分で閾値到達） |
+| SLEEPINESS_THRESHOLD | 0.8 | Sleepy表情閾値 |
+| SLEEPINESS_RATE | 0.8/600.0 | 増加レート（約10分で閾値到達） |
+| JOY_DECAY_RATE | 1.0/600.0 | joy減衰（約10分で±1.0→0.0） |
+| TRUST_DECAY_RATE | 0.0 | trust減衰なし（信頼・怒りは持続） |
+| MOOD_THRESHOLD | 0.6 | 表情切り替え閾値 |
+
+テスト時は `WANT_TO_TALK_RATE` や `SLEEPINESS_RATE` の分母を小さくして加速する。
+
+### WebAPI エンドポイント一覧
+
+| エンドポイント | メソッド | 機能 |
+|---|---|---|
+| `/` | GET | Personalize画面 |
+| `/personalize.html` | GET | Personalize画面 |
+| `/settings.html` | GET | Settings画面 |
+| `/status` | GET | WiFi接続状態・IP・ヒープを返す |
+| `/reboot` | POST | デバイスを再起動する |
+| `/role_set` | POST | システムプロンプトをSPIFFSに保存 |
+| `/role_get` | POST | 現在のシステムプロンプトを取得 |
+| `/memory_get` | POST | 長期記憶（User Info）を取得 |
+| `/memory_clear` | POST | 長期記憶を消去 |
+| `/characters` | GET | キャラクター一覧（JSON配列） |
+| `/character_get?name=xxx` | GET | キャラクターYAML取得 |
+| `/character_set?name=xxx` | POST | キャラクターYAML保存 |
+| `/active_character` | GET | アクティブキャラクター名取得 |
+| `/active_character` | POST | アクティブキャラクター変更 |
+| `/servo_offset` | GET | サーボオフセット取得 |
+| `/servo_offset` | POST | サーボオフセット保存 |
+
 ## Development Workflows
 
 ### Adding a New Mod
@@ -438,6 +507,26 @@ Known behaviors that differ from standard Arduino or desktop environments:
 - Idle expression animation (random mood-based)
 - Vector-based long-term memory (embeddings)
 - Head LED emotion visualization
+
+## CLAUDE.md の最新化手順
+
+実装が変わったときは以下のタイミングで CLAUDE.md を更新する。
+
+**更新が必要なとき:**
+- 新機能を実装してマージしたとき
+- パラメータ値（MoodManager のレート・閾値など）を変更したとき
+- 新しい WebAPI エンドポイントを追加したとき
+- SD カードのファイル構造が変わったとき
+- ビルド・動作確認フローが変わったとき
+- ESP32 固有の挙動で新しい知見を得たとき
+
+**更新の観点:**
+1. `## Recent & Planned` の Implemented / Planned リストを見直す
+2. `### WebAPI エンドポイント一覧` に追加エンドポイントを記載する
+3. `### MoodManager パラメータ` の値が実装と一致しているか確認する
+4. `### SD カードのファイル構造` に新しいファイル種別を追記する
+5. `## ESP32 Platform-Specific Pitfalls` に新しい知見を追記する
+6. バージョン番号（`**Version**`）が `Version.h` と一致しているか確認する
 
 ## External Resources
 
