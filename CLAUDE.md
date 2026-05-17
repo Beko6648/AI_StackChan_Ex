@@ -75,6 +75,27 @@ $log | Select-String -Pattern "selfTalk|自発発話|\[META\]|\[Character\]|choi
 - 監視時間は「起動時間（約10秒）＋テスト用自発発話待機時間＋余裕」で設定する（例: 30秒自発発話なら90秒監視）
 - 自発発話の確認では LLM の `choices[].content` と `[META]` ログを見ればよい
 
+### WebAPI を使った動作確認フロー
+
+書き込み後、シリアル監視の前に WebAPI で WiFi 接続を確認・再起動できる。デバイスのIPアドレスは通常 `192.168.1.114`。
+
+```powershell
+# WiFi接続確認
+Invoke-WebRequest -Uri "http://192.168.1.114/status" -Method GET -UseBasicParsing
+
+# 未接続または接続不安定な場合は再起動
+Invoke-WebRequest -Uri "http://192.168.1.114/reboot" -Method POST -UseBasicParsing
+
+# 再起動後15秒待って再確認
+Start-Sleep -Seconds 15
+Invoke-WebRequest -Uri "http://192.168.1.114/status" -Method GET -UseBasicParsing
+```
+
+**推奨フロー:**
+1. 書き込み完了後に `/status` で WiFi 接続を確認
+2. `"wifi":false` なら `/reboot` で再起動し15秒後に再確認
+3. WiFi 接続確認後にシリアル監視を開始
+
 ### Build Targets
 
 PlatformIO build targets in `platformio.ini`:

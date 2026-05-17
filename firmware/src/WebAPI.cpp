@@ -1,6 +1,7 @@
 #include <ESP32WebServer.h>
 #include <nvs.h>
 #include <SD.h>
+#include <WiFi.h>
 #include <ArduinoJson.h>
 #include <ArduinoYaml.h>
 #include "WebAPI.h"
@@ -506,6 +507,25 @@ void handle_face() {
   server.send(200, "text/plain", String("OK"));
 }
 
+// デバイス状態を返す（WiFi接続状態・IP・ヒープ）
+void handle_status() {
+    String json = "{";
+    json += "\"wifi\":" + String(WiFi.isConnected() ? "true" : "false") + ",";
+    json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
+    json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
+    json += "\"heap\":" + String(ESP.getFreeHeap()) + ",";
+    json += "\"minHeap\":" + String(ESP.getMinFreeHeap());
+    json += "}";
+    server.send(200, "application/json", json);
+}
+
+// デバイスを再起動する
+void handle_reboot() {
+    server.send(200, "text/plain", "Rebooting...");
+    delay(200);
+    ESP.restart();
+}
+
 #if 0
 void handle_setting() {
   String value = server.arg("volume");
@@ -556,6 +576,8 @@ void init_web_server(void)
   server.on("/personalize.html", handle_personalize_html);
   server.on("/personalize.js", handle_personalize_js);
   server.on("/settings.html", handle_settings_html);
+  server.on("/status", handle_status);
+  server.on("/reboot", HTTP_POST, handle_reboot);
   server.on("/settings.js", handle_settings_js);
 
 
