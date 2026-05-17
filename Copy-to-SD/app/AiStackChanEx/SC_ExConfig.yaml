@@ -35,3 +35,7 @@ moduleLLM:
 ack:
   speakerId: -1                        # 使用する話者ID。-1 の場合は tts.voice を自動使用 (WebVoiceVox 時)
 
+# キャラクター設定
+character:
+  name: "butler"                       # /characters/{name}.yaml を読み込む。空欄の場合はデフォルト
+

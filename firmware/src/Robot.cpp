@@ -1,4 +1,5 @@
 #include "Robot.h"
+#include "CharacterLoader.h"
 #include "tts/WebVoiceVoxTTS.h"
 #include "tts/ElevenLabsTTS.h"
 #include "tts/OpenAITTS.h"
@@ -81,6 +82,21 @@ Robot::Robot(StackchanExConfig& config) : m_config(config)
 #endif
   
   initLLM(config);
+
+  // キャラクター設定の適用（SD カードの /characters/{name}.yaml から読み込む）
+  {
+    CharacterData charData;
+    if (llm && loadCharacter(config.getExConfig().character.name, charData)) {
+      llm->save_userRole(charData.systemPrompt);
+      llm->enableMemory(charData.memory);
+      if (!charData.voice.isEmpty()) {
+        ex_config_s exConfig = config.getExConfig();
+        exConfig.tts.voice = charData.voice;
+        config.setExConfig(exConfig);
+      }
+    }
+  }
+
   initTTS(config);
   initSTT(config);
 

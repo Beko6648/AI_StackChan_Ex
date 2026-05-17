@@ -140,6 +140,8 @@ void StackchanExConfig::setExtendSettings(DynamicJsonDocument doc)
 
     _ex_parameters.ack.speakerId    = doc["ack"]["speakerId"] | -1;
 
+    _ex_parameters.character.name   = doc["character"]["name"].as<String>();
+
 }
 
 void StackchanExConfig::printExtParameters(void)
@@ -172,5 +174,6 @@ void StackchanExConfig::printExtParameters(void)
     M5_LOGI("module llm txPin: %d", _ex_parameters.moduleLLM.txPin);
 
     M5_LOGI("ack speakerId: %d", _ex_parameters.ack.speakerId);
+    M5_LOGI("character name: %s", _ex_parameters.character.name.c_str());
 
 }

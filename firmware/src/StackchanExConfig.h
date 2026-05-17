@@ -86,6 +86,10 @@ typedef struct AckConf {
     int speakerId = -1;  // -1: tts.voice を自動使用
 } ack_s;
 
+typedef struct CharacterConf {
+    String name = "";  // キャラクターファイル名（拡張子なし）。空の場合はデフォルト
+} character_s;
+
 typedef struct ExConfig {
     llm_s llm;
     tts_s tts;
@@ -94,6 +98,7 @@ typedef struct ExConfig {
     audio_s audio;
     moduleLLM_s moduleLLM;
     ack_s ack;
+    character_s character;
 } ex_config_s;
 
 
