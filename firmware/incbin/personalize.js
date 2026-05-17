@@ -99,4 +99,79 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Initial load
   loadMemory();
+
+  // --- Character logic ---
+  const characterSelect = document.getElementById('characterSelect');
+  const characterInput = document.getElementById('characterInput');
+  const saveCharacterButton = document.getElementById('saveCharacterButton');
+  const useCharacterButton = document.getElementById('useCharacterButton');
+  const activeCharacterDiv = document.getElementById('activeCharacter');
+
+  function loadActiveCharacter() {
+    fetch('/active_character')
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Failed to get active character');
+        const name = await res.text();
+        activeCharacterDiv.textContent = 'Active: ' + (name || '(none)');
+      })
+      .catch(() => { activeCharacterDiv.textContent = ''; });
+  }
+
+  function loadCharacter(name) {
+    fetch('/character_get?name=' + encodeURIComponent(name))
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Failed to load character');
+        characterInput.value = await res.text();
+      })
+      .catch((err) => showError('Error loading character: ' + err.message));
+  }
+
+  fetch('/characters')
+    .then(async (res) => {
+      if (!res.ok) throw new Error('Failed to get character list');
+      const names = await res.json();
+      names.forEach((name) => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        characterSelect.appendChild(opt);
+      });
+      if (names.length > 0) loadCharacter(names[0]);
+    })
+    .catch((err) => showError('Error loading characters: ' + err.message));
+
+  loadActiveCharacter();
+
+  characterSelect.addEventListener('change', () => loadCharacter(characterSelect.value));
+
+  useCharacterButton.addEventListener('click', () => {
+    const name = characterSelect.value;
+    if (!name) return;
+    fetch('/active_character', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: name
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await res.text());
+        showStatus('Active character set to "' + name + '". Please reboot to apply.');
+        loadActiveCharacter();
+      })
+      .catch((err) => showError('Error: ' + err.message));
+  });
+
+  saveCharacterButton.addEventListener('click', () => {
+    const name = characterSelect.value;
+    if (!name) return;
+    fetch('/character_set?name=' + encodeURIComponent(name), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: characterInput.value
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await res.text());
+        showStatus('Character "' + name + '" saved successfully.');
+      })
+      .catch((err) => showError('Error saving character: ' + err.message));
+  });
 });

@@ -98,6 +98,9 @@
 </head>
 <body>
   <h1>Personalize</h1>
+  <div style="max-width:32em;margin:0 auto 1em;text-align:right;">
+    <a href="/settings.html"><button type="button">⚙ Settings</button></a>
+  </div>
   <div class="container">
     <div class="section">
       <h1>Role (Custom Instructions)</h1>
@@ -112,6 +115,18 @@
       <label for="memoryInput">Current Memory</label>
       <textarea id="memoryInput" name="memory" readonly></textarea>
       <button type="button" id="clearMemoryButton">Clear</button>
+    </div>
+    <div class="section">
+      <h1>Character</h1>
+      <label for="characterSelect">Select Character</label>
+      <div style="display:flex;gap:0.5em;margin-bottom:1em;">
+        <select id="characterSelect" style="flex:1;font-size:1em;padding:0.5em;border-radius:6px;border:1px solid #ccc;"></select>
+        <button type="button" id="useCharacterButton" style="background:#28a745;">Use</button>
+      </div>
+      <div id="activeCharacter" style="font-size:0.85em;color:#555;margin-bottom:1em;"></div>
+      <label for="characterInput">Character YAML</label>
+      <textarea id="characterInput" style="height:14em;font-family:monospace;font-size:0.85em;"></textarea>
+      <button type="button" id="saveCharacterButton">Save YAML</button>
     </div>
     <div id="status"></div>
     <div id="error"></div>

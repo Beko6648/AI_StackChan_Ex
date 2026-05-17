@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Settings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="settings.js" defer></script>
+  <style>
+    html { font-size: 18px; }
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; color: #222; }
+    h1 { font-size: 1.5em; margin-top: 0; }
+    h2 { font-size: 1.1em; margin-bottom: 0.5em; }
+    label { display: block; margin-bottom: 0.3em; font-weight: bold; }
+    input[type=number] {
+      width: 6em; font-size: 1em; padding: 0.5em;
+      border-radius: 6px; border: 1px solid #ccc;
+      margin-bottom: 1em; margin-right: 1em;
+    }
+    button {
+      padding: 0.7em 2em; font-size: 1em;
+      border-radius: 6px; border: none;
+      background: #0077cc; color: #fff;
+      cursor: pointer; transition: background 0.2s;
+    }
+    button:hover, button:active { background: #005fa3; }
+    .container {
+      max-width: 32em; margin: auto;
+      background: #fff; padding: 2em 1em;
+      border-radius: 10px; box-shadow: 0 2px 8px #0001;
+    }
+    .section { margin-bottom: 2em; }
+    .row { display: flex; align-items: center; gap: 1em; flex-wrap: wrap; }
+    .field { display: flex; flex-direction: column; }
+    #status { margin-top: 1em; color: #007700; }
+    #error  { margin-top: 1em; color: #bb2222; }
+    .note   { font-size: 0.8em; color: #888; margin-top: 0.5em; }
+    @media (max-width: 600px) {
+      html { font-size: 16px; }
+      .container { padding: 1em 0.5em; border-radius: 0; box-shadow: none; }
+      button { width: 100%; padding: 0.9em 0; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Settings</h1>
+  <div style="max-width:32em;margin:0 auto 1em;text-align:right;">
+    <a href="/personalize.html"><button type="button">✎ Personalize</button></a>
+  </div>
+  <div class="container">
+    <div class="section">
+      <h2>Servo Offset</h2>
+      <div class="row">
+        <div class="field">
+          <label for="offsetX">X（左右）</label>
+          <input type="number" id="offsetX" min="-90" max="90" value="0">
+        </div>
+        <div class="field">
+          <label for="offsetY">Y（上下）</label>
+          <input type="number" id="offsetY" min="-90" max="90" value="0">
+        </div>
+      </div>
+      <button type="button" id="saveOffsetButton">Save</button>
+      <p class="note">保存後に再起動すると反映されます。</p>
+    </div>
+    <div id="status"></div>
+    <div id="error"></div>
+  </div>
+</body>
+</html>

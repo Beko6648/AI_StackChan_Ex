@@ -1,5 +1,8 @@
 #include <ESP32WebServer.h>
 #include <nvs.h>
+#include <SD.h>
+#include <ArduinoJson.h>
+#include <ArduinoYaml.h>
 #include "WebAPI.h"
 #include "Avatar.h"
 #include "llm/ChatGPT/ChatGPT.h"
@@ -142,6 +145,8 @@ asm(\
 //IMPORT_FILE(.rodata, "index.html", index_html);
 IMPORT_FILE(.rodata, "personalize.html", personalize_html);
 IMPORT_FILE(.rodata, "personalize.js", personalize_js);
+IMPORT_FILE(.rodata, "settings.html", settings_html);
+IMPORT_FILE(.rodata, "settings.js", settings_js);
 
 
 void handleRoot() {
@@ -298,6 +303,193 @@ void handle_memory_clear() {
   }
 };
 
+static const char* BASIC_CONFIG_PATH  = "/yaml/SC_BasicConfig.yaml";
+static const char* EX_CONFIG_PATH     = "/app/AiStackChanEx/SC_ExConfig.yaml";
+
+void handle_settings_html() {
+    server.send_P(200, "text/html", (const char*)settings_html, (size_t)sizeof_settings_html);
+}
+
+void handle_settings_js() {
+    server.send_P(200, "application/javascript", (const char*)settings_js, (size_t)sizeof_settings_js);
+}
+
+// サーボオフセット取得
+void handle_servo_offset_get() {
+    File file = SD.open(BASIC_CONFIG_PATH);
+    if (!file) {
+        server.send(500, "application/json", "{\"x\":0,\"y\":0}");
+        return;
+    }
+    DynamicJsonDocument doc(4096);
+    auto err = deserializeYml(doc, file);
+    file.close();
+    if (err) {
+        server.send(500, "application/json", "{\"x\":0,\"y\":0}");
+        return;
+    }
+    int x = doc["servo"]["offset"]["x"] | 0;
+    int y = doc["servo"]["offset"]["y"] | 0;
+    server.send(200, "application/json",
+                String("{\"x\":") + x + ",\"y\":" + y + "}");
+}
+
+// サーボオフセット保存
+void handle_servo_offset_set() {
+    String body = server.arg("plain");
+    DynamicJsonDocument req(128);
+    if (deserializeJson(req, body)) {
+        server.send(400, "text/plain", "Invalid JSON");
+        return;
+    }
+    int newX = req["x"] | 0;
+    int newY = req["y"] | 0;
+
+    // YAML を読み込んで offset だけ書き換えて保存
+    File file = SD.open(BASIC_CONFIG_PATH);
+    if (!file) {
+        server.send(500, "text/plain", "Failed to open config file");
+        return;
+    }
+    DynamicJsonDocument doc(4096);
+    auto err = deserializeYml(doc, file);
+    file.close();
+    if (err) {
+        server.send(500, "text/plain", "YAML parse error");
+        return;
+    }
+    doc["servo"]["offset"]["x"] = newX;
+    doc["servo"]["offset"]["y"] = newY;
+
+    File out = SD.open(BASIC_CONFIG_PATH, FILE_WRITE);
+    if (!out) {
+        server.send(500, "text/plain", "Failed to write config file");
+        return;
+    }
+    serializeJsonPretty(doc, out);
+    out.close();
+    Serial.printf("[WebAPI] Servo offset saved: x=%d y=%d\n", newX, newY);
+    server.send(200, "text/plain", "OK");
+}
+
+// アクティブキャラクター取得
+void handle_active_character_get() {
+    File file = SD.open(EX_CONFIG_PATH);
+    if (!file) {
+        server.send(500, "text/plain", "Failed to open ExConfig");
+        return;
+    }
+    DynamicJsonDocument doc(8192);
+    auto err = deserializeYml(doc, file);
+    file.close();
+    if (err) {
+        server.send(500, "text/plain", "YAML parse error");
+        return;
+    }
+    String name = doc["character"]["name"] | "";
+    server.send(200, "text/plain", name);
+}
+
+// アクティブキャラクター変更
+void handle_active_character_set() {
+    String name = server.arg("plain");
+    name.trim();
+    if (name.isEmpty()) {
+        server.send(400, "text/plain", "name required");
+        return;
+    }
+    File file = SD.open(EX_CONFIG_PATH);
+    if (!file) {
+        server.send(500, "text/plain", "Failed to open ExConfig");
+        return;
+    }
+    DynamicJsonDocument doc(8192);
+    auto err = deserializeYml(doc, file);
+    file.close();
+    if (err) {
+        server.send(500, "text/plain", "YAML parse error");
+        return;
+    }
+    doc["character"]["name"] = name;
+    File out = SD.open(EX_CONFIG_PATH, FILE_WRITE);
+    if (!out) {
+        server.send(500, "text/plain", "Failed to write ExConfig");
+        return;
+    }
+    serializeJsonPretty(doc, out);
+    out.close();
+    Serial.printf("[WebAPI] Active character set: %s\n", name.c_str());
+    server.send(200, "text/plain", "OK");
+}
+
+// キャラクターファイル一覧を返す（JSON配列）
+void handle_characters_list() {
+    String json = "[";
+    File dir = SD.open("/characters");
+    if (dir) {
+        bool first = true;
+        File entry = dir.openNextFile();
+        while (entry) {
+            if (!entry.isDirectory()) {
+                // フルパスからファイル名だけを取り出す
+                String fullPath = entry.name();
+                int slashIdx = fullPath.lastIndexOf('/');
+                String name = (slashIdx >= 0) ? fullPath.substring(slashIdx + 1) : fullPath;
+                if (name.endsWith(".yaml")) {
+                    name = name.substring(0, name.length() - 5);
+                    if (!first) json += ",";
+                    json += "\"" + name + "\"";
+                    first = false;
+                }
+            }
+            entry.close();
+            entry = dir.openNextFile();
+        }
+        dir.close();
+    }
+    json += "]";
+    server.send(200, "application/json", json);
+}
+
+// キャラクターファイルの内容を返す
+void handle_character_get() {
+    String name = server.arg("name");
+    if (name.isEmpty()) {
+        server.send(400, "text/plain", "name parameter required");
+        return;
+    }
+    String path = "/characters/" + name + ".yaml";
+    File file = SD.open(path.c_str());
+    if (!file) {
+        server.send(404, "text/plain", "Character not found: " + name);
+        return;
+    }
+    String content = "";
+    while (file.available()) content += (char)file.read();
+    file.close();
+    server.send(200, "text/plain; charset=utf-8", content);
+}
+
+// キャラクターファイルを保存する
+void handle_character_set() {
+    String name = server.arg("name");
+    if (name.isEmpty()) {
+        server.send(400, "text/plain", "name parameter required");
+        return;
+    }
+    String path = "/characters/" + name + ".yaml";
+    String content = server.arg("plain");
+    File file = SD.open(path.c_str(), FILE_WRITE);
+    if (!file) {
+        server.send(500, "text/plain", "Failed to open file for writing");
+        return;
+    }
+    file.print(content);
+    file.close();
+    Serial.printf("[WebAPI] Character saved: %s\n", path.c_str());
+    server.send(200, "text/plain", "OK");
+}
+
 void handle_face() {
   String expression = server.arg("expression");
   expression = expression + "\n";
@@ -363,6 +555,8 @@ void init_web_server(void)
   server.on("/", handleRoot);
   server.on("/personalize.html", handle_personalize_html);
   server.on("/personalize.js", handle_personalize_js);
+  server.on("/settings.html", handle_settings_html);
+  server.on("/settings.js", handle_settings_js);
 
 
   // APIs
@@ -377,6 +571,13 @@ void init_web_server(void)
   server.on("/role_get", handle_role_get);
   server.on("/memory_get", handle_memory_get);
   server.on("/memory_clear", handle_memory_clear);
+  server.on("/servo_offset", HTTP_GET, handle_servo_offset_get);
+  server.on("/servo_offset", HTTP_POST, handle_servo_offset_set);
+  server.on("/active_character", HTTP_GET, handle_active_character_get);
+  server.on("/active_character", HTTP_POST, handle_active_character_set);
+  server.on("/characters", handle_characters_list);
+  server.on("/character_get", handle_character_get);
+  server.on("/character_set", HTTP_POST, handle_character_set);
 
   // Other
   //
