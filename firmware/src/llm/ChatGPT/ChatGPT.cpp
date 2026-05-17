@@ -228,13 +228,10 @@ void ChatGPT::chat(String text, const char *base64_buf) {
     {
       String emotionInstr =
         String("あなたの現在の感情は「") + stackChanMind.emotionToString() + "」です。"
-        "返答の末尾に会話内容を踏まえた次の感情と気分変化を付与してください。"
-        "形式: [META]{\"emotion\": \"happy\", \"joy\": 0.3, \"trust\": 0.1}[/META] "
-        "※必ず半角角括弧 [ と ] を使用すること。全角【】は不可。"
-        "感情の種類: happy(喜び) neutral(普通) sad(悲しみ) angry(怒り) doubt(疑問) sleepy(眠気) "
-        "joy は楽しさの変化量（-1.0〜+1.0、楽しい会話なら正、悲しい内容なら負）。"
-        "trust は信頼感の変化量（-1.0〜+1.0、穏やかな会話なら正、怒りを感じたら負）。"
-        "変化が小さいときは 0.0 に近い値にすること。";
+        "発話の末尾に [META]{...}[/META] 形式で感情と気分変化を付与してください。"
+        "例: [META]{\"emotion\":\"happy\",\"joy\":0.3,\"trust\":0.1}[/META] "
+        "emotionの選択肢: happy/neutral/sad/angry/doubt/sleepy "
+        "joy・trustは会話に応じた変化量（-1.0〜+1.0、変化小さければ0.0）";
       String cur = String((const char*)chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"]);
       String appended = cur;
       if (!_talkPrompt.isEmpty()) appended += " " + _talkPrompt;
@@ -357,6 +354,7 @@ String ChatGPT::execChatGpt(String json_string, String& calledFunc) {
           int metaStart = response.indexOf("[META]");
           int metaEnd   = response.indexOf("[/META]");
           if (metaStart >= 0 && metaEnd > metaStart) {
+            // 正常形式: [META]{...}[/META]
             String metaContent = response.substring(metaStart + 6, metaEnd);
             DynamicJsonDocument metaDoc(128);
             if (!deserializeJson(metaDoc, metaContent)) {
@@ -371,7 +369,14 @@ String ChatGPT::execChatGpt(String json_string, String& calledFunc) {
             }
             response = response.substring(0, metaStart) + response.substring(metaEnd + 7);
             response.trim();
+          } else if (metaEnd >= 0) {
+            // 不正形式: [META]なしで[/META]が出現した場合は[/META]以降を全て除去
+            response = response.substring(0, metaEnd);
+            response.trim();
           }
+          // 残存する[META][/META]タグを念のため除去
+          response.replace("[META]",  "");
+          response.replace("[/META]", "");
         }
 
         calledFunc = String("");
