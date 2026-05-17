@@ -47,12 +47,7 @@ public:
     String set_avatar_expression(const char* expression);
     #endif
 
-    String timer(int32_t time, const char* action);
-    String timer_change(int32_t time);
-
-    String get_date();
-    String get_time();
-    String get_week();
+    String get_datetime();
 
     #if defined(ARDUINO_M5STACK_CORES3)
     #if defined(ENABLE_WAKEWORD)

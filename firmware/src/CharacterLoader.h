@@ -5,6 +5,7 @@
 
 struct CharacterData {
     String systemPrompt;
+    String conversationPrompt;  // 毎回の会話時に system role に追加する指示
     String voice;    // TTS 話者ID。空の場合は SC_ExConfig の tts.voice を使用
     bool   memory = false;  // 長期記憶の有効・無効
 };

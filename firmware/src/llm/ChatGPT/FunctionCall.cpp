@@ -66,39 +66,6 @@ const String json_Functions =
     "}"
   "},"
 #endif
-  "{"
-    "\"name\": \"timer\","
-    "\"description\": \"指定した時間が経過したら、指定した動作を実行する。指定できる動作はalarmとshutdown。\","
-    "\"parameters\": {"
-      "\"type\":\"object\","
-      "\"properties\": {"
-        "\"time\":{"
-          "\"type\": \"integer\","
-          "\"description\": \"指定したい時間。単位は秒。\""
-        "},"
-        "\"action\":{"
-          "\"type\": \"string\","
-          "\"description\": \"指定したい動作。alarmは音で通知。shutdownは電源OFF。\","
-          "\"enum\": [\"alarm\", \"shutdown\"]"
-        "}"
-      "},"
-      "\"required\": [\"time\", \"action\"]"
-    "}"
-  "},"
-  "{"
-    "\"name\": \"timer_change\","
-    "\"description\": \"実行中のタイマーの設定時間を変更する。\","
-    "\"parameters\": {"
-      "\"type\":\"object\","
-      "\"properties\": {"
-        "\"time\":{"
-          "\"type\": \"integer\","
-          "\"description\": \"変更後の時間。単位は秒。0の場合はタイマーをキャンセルする。\""
-        "}"
-      "},"
-      "\"required\": [\"time\"]"
-    "}"
-  "},"
 #if defined(ARDUINO_M5STACK_CORES3)
 #if defined(ENABLE_WAKEWORD)
   "{"
@@ -134,24 +101,8 @@ const String json_Functions =
 #endif  //defined(ENABLE_WAKEWORD)
 #endif  //defined(ARDUINO_M5STACK_CORES3)
   "{"
-    "\"name\": \"get_date\","
-    "\"description\": \"今日の日付を取得する。\","
-    "\"parameters\": {"
-      "\"type\":\"object\","
-      "\"properties\": {}"
-    "}"
-  "},"
-  "{"
-    "\"name\": \"get_time\","
-    "\"description\": \"現在の時刻を取得する。\","
-    "\"parameters\": {"
-      "\"type\":\"object\","
-      "\"properties\": {}"
-    "}"
-  "},"
-  "{"
-    "\"name\": \"get_week\","
-    "\"description\": \"今日が何曜日かを取得する。\","
+    "\"name\": \"get_datetime\","
+    "\"description\": \"現在の日付・時刻・曜日を取得する。\","
     "\"parameters\": {"
       "\"type\":\"object\","
       "\"properties\": {}"
@@ -274,17 +225,6 @@ String FunctionCall::exec_calledFunc(const char* name, const char* args){
       response = set_avatar_expression(expression);
     }
 #endif
-    else if(strcmp(name, "timer") == 0){
-      const int time = argsDoc["time"];
-      const char* action = argsDoc["action"];
-      Serial.printf("time:%d\n",time);
-      Serial.println(action);
-      response = timer(time, action);
-    }
-    else if(strcmp(name, "timer_change") == 0){
-      const int time = argsDoc["time"];
-      response = timer_change(time);    
-    }
 #if defined(ARDUINO_M5STACK_CORES3)
 #if defined(ENABLE_WAKEWORD)
     else if(strcmp(name, "register_wakeword") == 0){
@@ -300,14 +240,8 @@ String FunctionCall::exec_calledFunc(const char* name, const char* args){
     }
 #endif  //defined(ENABLE_WAKEWORD)
 #endif  //defined(ARDUINO_M5STACK_CORES3)
-    else if(strcmp(name, "get_date") == 0){
-      response = get_date();    
-    }
-    else if(strcmp(name, "get_time") == 0){
-      response = get_time();    
-    }
-    else if(strcmp(name, "get_week") == 0){
-      response = get_week();    
+    else if(strcmp(name, "get_datetime") == 0){
+      response = get_datetime();
     }
 #if defined(USE_EXTENSION_FUNCTIONS)
     else if(strcmp(name, "reminder") == 0){
@@ -385,98 +319,26 @@ String FunctionCall::set_avatar_expression(const char* expression){
 #endif
 
 
-String FunctionCall::timer(int32_t time, const char* action){
+
+
+String FunctionCall::get_datetime(){
   String response = "";
-
-  if(xAlarmTimer != NULL){
-    response = "別のタイマーを実行中です。";
-  }
-  else{
-    if(strcmp(action, "alarm") == 0){
-      xAlarmTimer = xTimerCreate("Timer", time * 1000, pdFALSE, 0, alarmTimerCallback);
-      if(xAlarmTimer != NULL){
-        xTimerStart(xAlarmTimer, 0);
-        response = String("アラーム設定成功。") ;
-      }
-      else{
-        response = "タイマーの設定が失敗しました。";
-      }
-    }
-    else if(strcmp(action, "shutdown") == 0){
-      xAlarmTimer = xTimerCreate("Timer", time * 1000, pdFALSE, 0, powerOffTimerCallback);
-      if(xAlarmTimer != NULL){
-        xTimerStart(xAlarmTimer, 0);
-        response = String(time) + "秒後にパワーオフします。";
-      }
-      else{
-        response = "タイマー設定が失敗しました。";
-      }
-    }
-  }
-
-  Serial.println(response);
-  return response;
-}
-
-String FunctionCall::timer_change(int32_t time){
-  String response = "";
-  if(time == 0){
-    xTimerDelete(xAlarmTimer, 0);
-    xAlarmTimer = NULL;
-    response = "タイマーをキャンセルしました。";
-    alarmTimerCanceled = true;
-  }
-  else{
-    xTimerChangePeriod(xAlarmTimer, time * 1000, 0);
-    response = "タイマーの設定時間を" + String(time) + "秒に変更しました。";
-  }
-
-  return response;
-}
-
-
-String FunctionCall::get_date(){
-  String response = "";
-  struct tm timeInfo; 
-
-  if (getLocalTime(&timeInfo)) {                            // timeinfoに現在時刻を格納
-    response = String(timeInfo.tm_year + 1900) + "年"
-               + String(timeInfo.tm_mon + 1) + "月"
-               + String(timeInfo.tm_mday) + "日";
-  }
-  else{
-    response = "時刻取得に失敗しました。";
-  }
-  return response;
-}
-
-String FunctionCall::get_time(){
-  String response = "";
-  struct tm timeInfo; 
-
-  if (getLocalTime(&timeInfo)) {                            // timeinfoに現在時刻を格納
-    response = String(timeInfo.tm_hour) + "時" + String(timeInfo.tm_min) + "分";
-  }
-  else{
-    response = "時刻取得に失敗しました。";
-  }
-  return response;
-}
-
-
-String FunctionCall::get_week(){
-  String response = "";
-  struct tm timeInfo; 
+  struct tm timeInfo;
   const char week[][8] = {"日", "月", "火", "水", "木", "金", "土"};
 
-  if (getLocalTime(&timeInfo)) {                            // timeinfoに現在時刻を格納
-    response = String(week[timeInfo.tm_wday]) + "曜日";
-  }
-  else{
+  if (getLocalTime(&timeInfo)) {
+    response = String(timeInfo.tm_year + 1900) + "年"
+               + String(timeInfo.tm_mon + 1) + "月"
+               + String(timeInfo.tm_mday) + "日"
+               + "（" + String(week[timeInfo.tm_wday]) + "曜日）"
+               + String(timeInfo.tm_hour) + "時"
+               + String(timeInfo.tm_min) + "分";
+  } else {
     response = "時刻取得に失敗しました。";
   }
   return response;
 }
+
 
 #if defined(ARDUINO_M5STACK_CORES3)
 #if defined(ENABLE_WAKEWORD)

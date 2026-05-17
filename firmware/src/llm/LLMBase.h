@@ -39,6 +39,7 @@ public:   //本当はprotectedにしたいところだがコールバック関�
 
 protected:
   bool _enableMemory;
+  String _conversationPrompt = "";
   bool save_system_prompt_to_spiffs();
   bool load_system_prompt_from_spiffs();
 
@@ -60,6 +61,9 @@ public:
 
   bool enableMemory() { return _enableMemory; };
   void enableMemory(bool isEnable) { _enableMemory = isEnable; };
+
+  String getConversationPrompt() const { return _conversationPrompt; };
+  void setConversationPrompt(const String& prompt) { _conversationPrompt = prompt; };
 
   // for async TTS
   //

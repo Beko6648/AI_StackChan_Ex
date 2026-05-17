@@ -224,7 +224,7 @@ void ChatGPT::chat(String text, const char *base64_buf) {
   {
     init_chat_doc(InitBuffer.c_str());
 
-    // 現在の感情を含む指示をシステムロールに追加する
+    // システムロールにキャラクター会話指示と感情指示を追加する
     {
       String emotionInstr =
         String("あなたの現在の感情は「") + stackChanMind.emotionToString() + "」です。"
@@ -236,7 +236,10 @@ void ChatGPT::chat(String text, const char *base64_buf) {
         "trust は信頼感の変化量（-1.0〜+1.0、穏やかな会話なら正、怒りを感じたら負）。"
         "変化が小さいときは 0.0 に近い値にすること。";
       String cur = String((const char*)chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"]);
-      chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"] = cur + " " + emotionInstr;
+      String appended = cur;
+      if (!_conversationPrompt.isEmpty()) appended += " " + _conversationPrompt;
+      appended += " " + emotionInstr;
+      chat_doc["messages"][SYSTEM_PROMPT_INDEX_SYSTEM_ROLE]["content"] = appended;
     }
 
     //if(reqCount == (MAX_REQUEST_COUNT - 1)){

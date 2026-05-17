@@ -27,9 +27,10 @@ bool loadCharacter(const String& name, CharacterData& data) {
         return false;
     }
 
-    data.systemPrompt = doc["system_prompt"].as<String>();
-    data.voice        = doc["voice"].as<String>();
-    data.memory       = doc["memory"] | false;
+    data.systemPrompt        = doc["system_prompt"].as<String>();
+    data.conversationPrompt  = doc["conversation_prompt"].as<String>();
+    data.voice               = doc["voice"].as<String>();
+    data.memory              = doc["memory"] | false;
 
     Serial.printf("[Character] Loaded: %s (voice=%s memory=%s)\n",
                   name.c_str(),
