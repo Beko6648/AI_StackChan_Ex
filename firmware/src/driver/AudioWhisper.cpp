@@ -15,7 +15,7 @@ AudioWhisper::AudioWhisper() {
   record_buffer = static_cast<byte*>(::heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   ::memset(record_buffer, 0, size);
 
-  // VAD用ダブルバッファをDMA RAMに永続確保（都度確保・解放によるクラッシュを防ぐ）
+  // VAD用ダブルバッファをDMA RAMに永続確保
   chunk_buf = (int16_t*)heap_caps_malloc(
       record_length * sizeof(int16_t), MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
   if (!chunk_buf) {
@@ -111,12 +111,29 @@ void AudioWhisper::Record() {
   }
 
   for (int i = 0; i < (int)record_number; ++i) {
+    // DMA RAM に録音（キャッシュ問題なし）
     M5.Mic.record(chunk_buf, record_length, record_samplerate);
 
+    // PSRAM のメインバッファへコピー
     int16_t* dest = &wavData[i * record_length];
     memcpy(dest, chunk_buf, record_length * sizeof(int16_t));
     actualChunks = i + 1;
 
+    // デバッグ: 50チャンクごとにヒープ整合性・状態を確認
+    if (actualChunks % 50 == 0) {
+      bool heapOk = heap_caps_check_integrity(MALLOC_CAP_DEFAULT, false);
+      Serial.printf("[DBG] chunk=%d heap=%u dmaFree=%u heapOk=%d buf[0]=%d\n",
+                    actualChunks,
+                    ESP.getFreeHeap(),
+                    heap_caps_get_free_size(MALLOC_CAP_DMA),
+                    heapOk,
+                    chunk_buf[0]);
+      if (!heapOk) {
+        Serial.println("[DBG] !!! ヒープ破壊を検出 !!!");
+      }
+    }
+
+    // DMA RAM から振幅計算（キャッシュ問題なし）
     int16_t maxAmp = 0;
     for (int j = 0; j < (int)record_length; j++) {
       int16_t v = chunk_buf[j] < 0 ? -chunk_buf[j] : chunk_buf[j];

@@ -5,7 +5,7 @@
 
 class AudioWhisper {
   byte*    record_buffer;
-  int16_t* chunk_buf;     // VAD用ダブルバッファ（DMA RAM・永続確保）
+  int16_t* chunk_buf = nullptr;  // VAD用DMA RAMバッファ
   size_t   _actualSize = 0;
  public:
   AudioWhisper();

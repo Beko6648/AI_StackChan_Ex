@@ -173,16 +173,24 @@ self_talk_prompt: |     # 自発発話時のユーザーメッセージ
 **解決策:** DMA 対応内部 RAM（300バイト）をダブルバッファとして確保し、録音 → 振幅計算 → PSRAM へコピー の順で処理。
 
 **問題2: mic_task スタックオーバーフロー**
-DMA RAM への録音が M5Unified 内部で異なるコードパスを通り、mic_task のスタック（デフォルト 2304バイト）が不足してクラッシュした。
+DMA RAM への録音で mic_task のスタックが不足してクラッシュした。
 
-**解決策:** `dma_buf_len=1024` に設定して mic_task のスタックを 4096バイトに増やした（`dma_buf_len` の値がスタックサイズの計算式 `2048 + dma_buf_len × 2` に使われるため）。副作用として1チャンクあたりの録音時間が 9.375ms → 16ms に変化したため `SILENCE_CHUNKS` と `record_number` を再調整した。
+M5Unified の Mic_Class.cpp を調査した結果、mic_task 内で `alloca(dma_buf_len × 2)` によりスタック上に DMA バッファを確保している。スタックサイズの計算式は `2048 + (dma_buf_len × 2)` だが、`i2s_read` の内部処理やシグナル処理でまれにこれを超えることが判明。DMA RAM か PSRAM かは mic_task のスタック使用量に影響しない（ユーザーバッファへの書き込みは別処理）。
+
+**解決策（暫定）:** `dma_buf_len=1024` に設定して mic_task のスタックを 4096バイトに増やした。副作用として1チャンクあたりの録音時間が 9.375ms → 16ms に変化したため `SILENCE_CHUNKS=59`・`record_number=600` に再調整した。4〜5回の会話で依然クラッシュが発生する。
+
+**根本解決の選択肢（未実施）:**
+- `dma_buf_len` をさらに増やす（2048以上）→ チャンク時間が 128ms以上になり VAD の精度が著しく低下
+- M5Unified の `.pio/libdeps/` 内でスタック基底値を `2048` → `6144` 以上に変更 → `dma_buf_len=128`（デフォルト）のまま十分なスタックを確保できるが、PlatformIO のライブラリ更新で変更が消えるリスクがある
 
 **問題3: `M5.Mic.begin()` の二重呼び出し**
 TTS 再生後に `PlayMP3.cpp` が `M5.Mic.begin()` を呼ぶが、録音開始時にも `AudioWhisper::Record()` が `M5.Mic.begin()` を呼ぶため二重になり、2回目の会話でクラッシュした。
 
-**解決策:** `AudioWhisper::Record()` の冒頭に `M5.Mic.end()` を追加して前の状態をリセットしてから録音を開始するようにした。
+**解決策:** `AudioWhisper::Record()` の冒頭に `M5.Mic.end()` を追加して前の状態をリセット。また `PlayMP3.cpp` から不要な `M5.Mic.end()` / `M5.Mic.begin()` を削除し、マイク管理を `AudioWhisper::Record()` に一元化した。
 
-**残課題:** `I2S: register I2S object to platform failed` エラーが蓄積すると lwIP TCP スタックを破壊してクラッシュすることがある。I2S エラーの根本原因は未解決（→ 残タスクの「不明エラー」参照）。将来的にはキャッシュ無効化（`Cache_Invalidate_Addr`）で PSRAM 直接録音に戻し、DMA RAM と `dma_buf_len` 変更を不要にする根本解決を検討する。
+**残課題（未解決）:**
+- `I2S: register I2S object to platform failed` エラーが録音・TTS 開始時に毎回発生。M5Unified 0.1.17 の CoreS3 固有の既知問題で外部からは修正不可。このエラー自体でクラッシュはしないが、mic_task スタックオーバーフローと組み合わさると lwIP TCP スタックを破壊してクラッシュに至る。
+- キャッシュ無効化（`Cache_Invalidate_Addr` / `esp_cache_msync`）で PSRAM 直接録音に戻す根本解決は、使用 ESP-IDF バージョン（5.1）では適切な API が存在しないため未実施。ESP-IDF 5.2+ では `esp_cache_msync` が利用可能。
 
 ---
 
