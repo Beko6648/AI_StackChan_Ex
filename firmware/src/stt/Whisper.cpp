@@ -90,19 +90,23 @@ String Whisper::Transcribe(AudioWhisper* audio) {
 String Whisper::speech_to_text(){
   String ret;
   AudioWhisper* audio = new AudioWhisper();
-  Serial.println("\r\nRecord start!\r\n");
-  audio->Record();  
-  Serial.println("Record end\r\n");
-  Serial.println("音声認識開始");
-  //avatar.setSpeechText("わかりました");  
+  unsigned long t_rec_start = millis();
+  Serial.println("[STT] 録音開始");
+  audio->Record();
+  Serial.printf("[TIMING] A 録音: %lu ms\n", millis() - t_rec_start);
+
+  unsigned long t_whisper_start = millis();
+  Serial.println("[STT] Whisper API 送信開始");
+  //avatar.setSpeechText("わかりました");
   if (!client.connect(API_HOST, API_PORT)) {
-    Serial.println("Whisper: Connection failed!");
+    Serial.println("[STT] Whisper: 接続失敗");
     ret = String("");
   }
   else{
     ret = Transcribe(audio);
     client.stop();
   }
+  Serial.printf("[TIMING] B Whisper API: %lu ms\n", millis() - t_whisper_start);
   delete audio;
   return ret;
 }

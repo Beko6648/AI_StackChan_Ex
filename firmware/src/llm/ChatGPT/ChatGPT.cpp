@@ -146,8 +146,8 @@ void ChatGPT::load_role(){
    * InitBuffer(会話履歴を挿入する前のプロンプト)を初期化
    */
   serializeJson(chat_doc, InitBuffer);
-  String json_str; 
-  serializeJsonPretty(chat_doc, json_str);  // 文字列をシリアルポートに出力する
+  String json_str;
+  serializeJsonPretty(chat_doc, json_str);
   Serial.println("Initialized prompt:");
   Serial.println(json_str);
 }
@@ -288,12 +288,13 @@ void ChatGPT::chat(String text, const char *base64_buf) {
     serializeJson(chat_doc, json_string);
 
     //serializeJsonPretty(chat_doc, json_string);
-    Serial.println("====================");
-    Serial.println(json_string);
-    Serial.println("====================");
+  Serial.println("====================");
+  Serial.println(json_string);
+  Serial.println("====================");
 
+    unsigned long t_llm_start = millis();
     response = execChatGpt(json_string, calledFunc);
-
+    Serial.printf("[TIMING] C LLM (ChatGPT API): %lu ms\n", millis() - t_llm_start);
 
     if(calledFunc == ""){   // Function Callなし ／ Function Call繰り返しの完了
       chatHistory.push_back(String("assistant"), String(""), response);   // 返答をチャット履歴に追加

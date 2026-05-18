@@ -107,6 +107,8 @@ String WebVoiceVoxTTS::voicevox_tts_url(const char* url, const char* root_ca) {
               Serial.println(error.f_str());
               return tts_url;
             }
+//          String json_string;
+//          serializeJsonPretty(doc, json_string);
   String json_string;
   serializeJsonPretty(doc, json_string);
   Serial.println("====================");
@@ -174,7 +176,10 @@ String WebVoiceVoxTTS::getStreamUrl(String text){
 }
 
 void WebVoiceVoxTTS::stream(String text){
+  unsigned long t_url_start = millis();
   String URL = getStreamUrl(text);
+  Serial.printf("[TIMING] D TTS URL取得 (VoiceVox API): %lu ms\n", millis() - t_url_start);
+
   if(URL == ""){
     Serial.println("failed to get stream URL.");
     return;
@@ -183,7 +188,13 @@ void WebVoiceVoxTTS::stream(String text){
   httpsStream = new AudioFileSourceHTTPSStream(URL.c_str(), root_ca);
   buff = new AudioFileSourceBuffer(httpsStream, preallocateBuffer, preallocateBufferSize);
 
+  unsigned long t_play_start = millis();
   playMP3(buff);
+  Serial.printf("[TIMING] E TTS再生合計 (バッファ充填+再生): %lu ms\n", millis() - t_play_start);
+  Serial.printf("[MEM] heap=%u minHeap=%u dmaFree=%u\n",
+                ESP.getFreeHeap(), ESP.getMinFreeHeap(),
+                heap_caps_get_free_size(MALLOC_CAP_DMA));
+
   delete httpsStream;
   delete buff;
 }
