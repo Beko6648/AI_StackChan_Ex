@@ -141,7 +141,8 @@ self_talk_prompt: |     # 自発発話時のユーザーメッセージ
 ### 調査・修正待ち
 
 - [ ] **就寝中の首振り動作**: `_headCtrl.stop()` 後も縦軸の動作だけ残っている可能性がある
-- [ ] **不明エラー**: 音声認識時に時折発生する SD カードエラー・I2S エラー（`sd_diskio.cpp:199` / `I2S: register I2S object to platform failed`）
+- [ ] **不明エラー**: 音声認識時に時折発生する SD カードエラー（`sd_diskio.cpp:199`）
+- [ ] **MP3:ERROR_BUFLEN 0**: TTS 再生のたびに発生。VoiceVox ストリーミング URL からの MP3 読み込み時にネットワーク遅延でバッファが空になる。AudioGeneratorMP3 の3回リトライで再生は続くが毎回出力される
 
 ### 未着手（細かい改善・修正）
 

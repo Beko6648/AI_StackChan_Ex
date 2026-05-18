@@ -48,7 +48,6 @@ void mp3_init(void)
 
 void playMP3(AudioFileSourceBuffer *buff){
 
-  M5.Mic.end();
   M5.Speaker.begin();
 
   mp3->begin(buff, &out);
@@ -63,7 +62,7 @@ void playMP3(AudioFileSourceBuffer *buff){
   }
 
   M5.Speaker.end();
-  M5.Mic.begin();
+  // M5.Mic.begin() は AudioWhisper::Record() で録音開始時に呼ぶため不要
 
 }
 
