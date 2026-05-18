@@ -2,8 +2,9 @@
 #include "AudioWhisper.h"
 
 //constexpr size_t record_number = 300/2;
-constexpr size_t record_number = 400;
+//constexpr size_t record_number = 400;
 //constexpr size_t record_number = 200;
+constexpr size_t record_number = 600;   // dma_buf_len=1024時は約9.6秒（600 × 16ms）
 constexpr size_t record_length = 150;
 constexpr size_t record_size = record_number * record_length;
 constexpr size_t record_samplerate = 16000;
@@ -13,15 +14,22 @@ AudioWhisper::AudioWhisper() {
   const auto size = record_size * sizeof(int16_t) + headerSize;
   record_buffer = static_cast<byte*>(::heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   ::memset(record_buffer, 0, size);
+
+  // VAD用ダブルバッファをDMA RAMに永続確保（都度確保・解放によるクラッシュを防ぐ）
+  chunk_buf = (int16_t*)heap_caps_malloc(
+      record_length * sizeof(int16_t), MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+  if (!chunk_buf) {
+    Serial.println("[VAD] chunk_buf DMA確保失敗 - PSRAMにフォールバック");
+    chunk_buf = (int16_t*)heap_caps_malloc(
+        record_length * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  }
 }
 
 AudioWhisper::~AudioWhisper() {
-  delete record_buffer;
+  if (record_buffer) heap_caps_free(record_buffer);
+  if (chunk_buf)     heap_caps_free(chunk_buf);
 }
 
-size_t AudioWhisper::GetSize() const {
-  return record_size * sizeof(int16_t) + headerSize;
-}
 
 int16_t* MakeHeader(byte* header) {
   const auto wavDataSize = record_number * record_length * 2;
@@ -73,12 +81,117 @@ int16_t* MakeHeader(byte* header) {
   return (int16_t*)&header[headerSize];
 }
 
+// 無音検出パラメータ
+static constexpr int MIN_SPEECH_CHUNKS = 20;  // 最低録音チャンク数（誤検知防止）
+static constexpr int SILENCE_CHUNKS    = 59;   // 無音が続くチャンク数で終了（約0.94秒・dma_buf_len=1024時）
+static constexpr int THRESHOLD_FACTOR  = 3;   // 環境ノイズ × この係数を閾値にする
+static constexpr int THRESHOLD_MIN     = 50;
+static constexpr int THRESHOLD_MAX     = 2000;
+
+static int16_t s_silenceThreshold = 200;  // 適応的に更新される閾値
+
 void AudioWhisper::Record() {
+  M5.Mic.end();    // 前回の begin() が残っている場合に備えてリセット
   M5.Mic.begin();
   auto *wavData = MakeHeader(record_buffer);
-  for (int rec_record_idx = 0; rec_record_idx < record_number; ++rec_record_idx) {
-    auto data = &wavData[rec_record_idx * record_length];
-    M5.Mic.record(data, record_length, record_samplerate);
+
+  bool    speechStarted    = false;
+  int     silentChunks     = 0;
+  int     actualChunks     = 0;
+  long    preSpeechAmpSum  = 0;
+  int     preSpeechChunks  = 0;
+  long    postSpeechAmpSum = 0;
+  int     postSpeechChunks = 0;
+  int16_t peakAmp          = 0;
+
+  if (!chunk_buf) {
+    Serial.println("[VAD] chunk_buf が未確保のため録音スキップ");
+    M5.Mic.end();
+    return;
   }
+
+  for (int i = 0; i < (int)record_number; ++i) {
+    M5.Mic.record(chunk_buf, record_length, record_samplerate);
+
+    int16_t* dest = &wavData[i * record_length];
+    memcpy(dest, chunk_buf, record_length * sizeof(int16_t));
+    actualChunks = i + 1;
+
+    int16_t maxAmp = 0;
+    for (int j = 0; j < (int)record_length; j++) {
+      int16_t v = chunk_buf[j] < 0 ? -chunk_buf[j] : chunk_buf[j];
+      if (v > maxAmp) maxAmp = v;
+    }
+    if (maxAmp > peakAmp) peakAmp = maxAmp;
+
+    if (!speechStarted) {
+      if (maxAmp > s_silenceThreshold) {
+        speechStarted = true;
+        silentChunks  = 0;
+      } else {
+        preSpeechAmpSum += maxAmp;
+        preSpeechChunks++;
+      }
+    } else {
+      if (maxAmp <= s_silenceThreshold) {
+        silentChunks++;
+        postSpeechAmpSum += maxAmp;
+        postSpeechChunks++;
+      } else {
+        silentChunks = 0;
+        postSpeechAmpSum = 0;
+        postSpeechChunks = 0;
+      }
+    }
+
+    if (speechStarted && silentChunks >= SILENCE_CHUNKS && actualChunks >= MIN_SPEECH_CHUNKS) {
+      Serial.printf("[VAD] 無音検出で録音終了: %d チャンク (peak=%d)\n", actualChunks, peakAmp);
+      break;
+    }
+  }
+
   M5.Mic.end();
+
+  Serial.printf("[VAD] 録音完了: %d チャンク 最大振幅=%d\n", actualChunks, peakAmp);
+  Serial.printf("[MEM] heap=%u minHeap=%u dmaFree=%u\n",
+                ESP.getFreeHeap(), ESP.getMinFreeHeap(),
+                heap_caps_get_free_size(MALLOC_CAP_DMA));
+
+  if (!speechStarted) {
+    // 発話未検出: 閾値を下げて次回の検出感度を上げる
+    int newThreshold = s_silenceThreshold / 2;
+    if (newThreshold < THRESHOLD_MIN) newThreshold = THRESHOLD_MIN;
+    s_silenceThreshold = (int16_t)newThreshold;
+    Serial.printf("[VAD] 発話未検出 → 閾値を下げます: %d\n", s_silenceThreshold);
+  } else {
+    // 発話検出: 環境ノイズから閾値を更新
+    // 発話前の無音 → 発話後の無音 の順で優先使用
+    int ambientChunks = (preSpeechChunks > 0) ? preSpeechChunks : postSpeechChunks;
+    long  ambientSum  = (preSpeechChunks > 0) ? preSpeechAmpSum : postSpeechAmpSum;
+    const char* src   = (preSpeechChunks > 0) ? "発話前" : "発話後";
+
+    if (ambientChunks > 0) {
+      int avgAmbient = (int)(ambientSum / ambientChunks);
+      int newThreshold = avgAmbient * THRESHOLD_FACTOR;
+      if (newThreshold < THRESHOLD_MIN) newThreshold = THRESHOLD_MIN;
+      if (newThreshold > THRESHOLD_MAX) newThreshold = THRESHOLD_MAX;
+      s_silenceThreshold = (int16_t)newThreshold;
+      Serial.printf("[VAD] 閾値更新(%s): ambient=%d → threshold=%d\n", src, avgAmbient, s_silenceThreshold);
+    }
+  }
+
+  // WAVヘッダを実際の録音サイズで更新
+  const int wavDataSize = actualChunks * record_length * 2;
+  byte* header = record_buffer;
+  unsigned int fileSizeMinus8 = wavDataSize + headerSize - 8;
+  header[4] = (byte)(fileSizeMinus8 & 0xFF);
+  header[5] = (byte)((fileSizeMinus8 >> 8) & 0xFF);
+  header[6] = (byte)((fileSizeMinus8 >> 16) & 0xFF);
+  header[7] = (byte)((fileSizeMinus8 >> 24) & 0xFF);
+  header[40] = (byte)(wavDataSize & 0xFF);
+  header[41] = (byte)((wavDataSize >> 8) & 0xFF);
+  header[42] = (byte)((wavDataSize >> 16) & 0xFF);
+  header[43] = (byte)((wavDataSize >> 24) & 0xFF);
+
+  _actualSize = wavDataSize + headerSize;
 }

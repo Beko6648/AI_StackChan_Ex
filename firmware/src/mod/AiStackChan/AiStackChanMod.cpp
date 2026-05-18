@@ -86,6 +86,7 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
   avatar.setSpeechText("御用でしょうか？");
 
   String ret = robot->listen();
+
   avatar.setSpeechText("");
 
 #ifdef USE_SERVO

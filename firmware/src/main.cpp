@@ -279,6 +279,7 @@ void init_mic_spk()
     auto micConfig = M5.Mic.config();
     //micConfig.stereo = false;
     micConfig.sample_rate = 16000;
+    micConfig.dma_buf_len = 1024;  // mic_taskスタックを増やす: 2048+(1024×2)=4096バイト
 #if defined(USE_AUDIO_MODULE)
     micConfig.pin_data_in = SYS_I2S_DIN_PIN;
     micConfig.pin_bck = SYS_I2S_SCLK_PIN;
