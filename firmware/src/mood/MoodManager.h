@@ -42,6 +42,11 @@ public:
         if (_trust < 0.0f) _trust *= 0.5f;
     }
 
+    // 手動で睡眠状態を設定（WebAPI から呼ぶ）
+    void setSleepiness(float value) {
+        _sleepiness = clamp(value, 0.0f, 1.0f);
+    }
+
     // 3パラメータのうち最も強いものに対応する表情を返す
     Expression getDominantExpression() const;
 

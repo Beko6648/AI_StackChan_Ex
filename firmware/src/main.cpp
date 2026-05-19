@@ -53,6 +53,7 @@
 StackchanExConfig system_config;
 Robot* robot;
 bool isOffline = false;
+AiStackChanMod* g_ai_stackchan_mod = nullptr;  // WebAPI から sleep 操作に使用
 
 
 // NTP接続情報　NTP connection information.
@@ -221,7 +222,8 @@ ModBase* init_mod(void)
 #if defined(REALTIME_API)
     add_mod(new RealtimeAiMod(isOffline));
 #else
-    add_mod(new AiStackChanMod(isOffline));
+    g_ai_stackchan_mod = new AiStackChanMod(isOffline);
+    add_mod(g_ai_stackchan_mod);
 #endif
   }
   add_mod(new StatusMonitorMod());

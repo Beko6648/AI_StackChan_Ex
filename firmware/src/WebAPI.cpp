@@ -9,11 +9,14 @@
 #include "llm/ChatGPT/ChatGPT.h"
 #include "llm/ChatGPT/FunctionCall.h"
 #include "Robot.h"
+#include "mod/ModManager.h"
+#include "mod/AiStackChan/AiStackChanMod.h"
 
 using namespace m5avatar;
 extern Avatar avatar;
 extern uint8_t m5spk_virtual_channel;
 extern String STT_API_KEY;
+extern AiStackChanMod* g_ai_stackchan_mod;
 
 ESP32WebServer server(80);
 
@@ -491,6 +494,27 @@ void handle_character_set() {
     server.send(200, "text/plain", "OK");
 }
 
+void handle_sleep() {
+    String action = server.arg("action");
+
+    if (!g_ai_stackchan_mod) {
+        server.send(503, "application/json", "{\"error\":\"AiStackChanMod not initialized\"}");
+        return;
+    }
+
+    if (action == "sleep") {
+        g_ai_stackchan_mod->requestManualSleep();
+        server.send(200, "application/json", "{\"status\":\"OK\",\"action\":\"sleep\"}");
+    }
+    else if (action == "wakeup") {
+        g_ai_stackchan_mod->requestManualWakeup();
+        server.send(200, "application/json", "{\"status\":\"OK\",\"action\":\"wakeup\"}");
+    }
+    else {
+        server.send(400, "application/json", "{\"error\":\"invalid action\"}");
+    }
+}
+
 void handle_face() {
   String expression = server.arg("expression");
   expression = expression + "\n";
@@ -600,6 +624,7 @@ void init_web_server(void)
   server.on("/characters", handle_characters_list);
   server.on("/character_get", handle_character_get);
   server.on("/character_set", HTTP_POST, handle_character_set);
+  server.on("/sleep", HTTP_POST, handle_sleep);
 
   // Other
   //

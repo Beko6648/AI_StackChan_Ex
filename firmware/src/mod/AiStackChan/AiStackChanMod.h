@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include "mod/ModBase.h"
 #include "head/HeadMotionController.h"
+#include "head/IdleLookAround.h"
 #include "mood/MoodManager.h"
 #include "driver/HeadTouch.h"
 
@@ -38,6 +39,12 @@ public:
     void display_touched(int16_t x, int16_t y);
     void doubleTapped(float ax, float ay, float az);   // 加速度センサによるダブルタップ検出のコールバック。platformio.iniで-DENABLE_TAP_DETECTを有効にしてください
     void idle(void);
+
+    // WebAPI から呼ぶ：手動で眠らせる
+    void requestManualSleep();
+
+    // WebAPI から呼ぶ：手動で起こす
+    void requestManualWakeup();
 };
 
 

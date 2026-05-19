@@ -554,4 +554,21 @@ void AiStackChanMod::idle(void)
 
 }
 
+void AiStackChanMod::requestManualSleep() {
+  if (_moodManager.getSleepiness() < 1.0f) {
+    _moodManager.setSleepiness(1.0f);
+    _yawnPlayed = false;
+    _sleepSoundPlayed = false;
+  }
+}
+
+void AiStackChanMod::requestManualWakeup() {
+  if (_moodManager.getSleepiness() >= 1.0f) {
+    playWakeupSound(system_config.getExConfig());
+    _moodManager.onWakeUp();
+    _yawnPlayed = false;
+    _sleepSoundPlayed = false;
+    _headCtrl.setMotion(new IdleLookAround());
+  }
+}
 
