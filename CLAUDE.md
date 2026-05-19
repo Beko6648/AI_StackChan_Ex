@@ -439,6 +439,7 @@ messages[2] → User Info（長期記憶の要約テキスト）
 | `/active_character` | POST | アクティブキャラクター変更 |
 | `/servo_offset` | GET | サーボオフセット取得 |
 | `/servo_offset` | POST | サーボオフセット保存 |
+| `/sleep` | POST | 睡眠状態を操作する（`action=sleep` で就寝、`action=wakeup` で起床） |
 
 ## Development Workflows
 

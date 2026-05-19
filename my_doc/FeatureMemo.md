@@ -72,6 +72,8 @@ WebAPI エンドポイント `/sleep` で、ユーザーが任意のタイミン
 
 **二重トリガー防止**: 既に寝ている状態で `sleep` コマンドを実行しても、就寝音声は再生されない。
 
+**UI**: `/settings.html` の「Power Management」セクションから Sleep/Wakeup ボタンで操作可能。
+
 ---
 
 ### 相槌システム（AckSound）

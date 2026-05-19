@@ -35,4 +35,34 @@ document.addEventListener('DOMContentLoaded', function () {
       })
       .catch((err) => showError('Error saving offset: ' + err.message));
   });
+
+  // Sleep/Wakeup buttons
+  const sleepButton = document.getElementById('sleepButton');
+  const wakeupButton = document.getElementById('wakeupButton');
+
+  sleepButton.addEventListener('click', () => {
+    fetch('/sleep', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'action=sleep'
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await res.text());
+        showStatus('Device entering sleep mode...');
+      })
+      .catch((err) => showError('Error: ' + err.message));
+  });
+
+  wakeupButton.addEventListener('click', () => {
+    fetch('/sleep', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'action=wakeup'
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await res.text());
+        showStatus('Device waking up...');
+      })
+      .catch((err) => showError('Error: ' + err.message));
+  });
 });
