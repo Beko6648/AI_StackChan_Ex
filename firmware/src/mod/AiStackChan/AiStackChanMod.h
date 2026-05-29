@@ -51,6 +51,10 @@ public:
 
     // WebAPI から呼ぶ：クローディアの返答を受け取り TTS で読み上げる
     void receiveCommandResult(const String& voice_text);
+
+    // WebAPI から呼ぶ：AI モード取得・設定（true=クローディア, false=ChatGPT）
+    bool getClaudiaMode();
+    void setClaudiaMode(bool enable);
 };
 
 

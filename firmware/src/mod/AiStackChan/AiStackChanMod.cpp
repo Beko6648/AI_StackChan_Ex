@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <deque>
 #include <SD.h>
+#include <nvs.h>
 #include <SPIFFS.h>
 #include "mod/ModManager.h"
 #include "AiStackChanMod.h"
@@ -57,6 +58,30 @@ static String   s_pendingCommandId   = "";
 static String   s_pendingCommandText = "";
 static uint32_t s_commandCounter     = 0;
 
+// AI モード（false=ChatGPT, true=クローディア）。デフォルトは ChatGPT
+static bool s_claudiaMode = false;
+
+static void load_claudia_mode() {
+  uint32_t nvs_handle;
+  if (ESP_OK == nvs_open("ai_mode", NVS_READONLY, &nvs_handle)) {
+    uint8_t val = 0;
+    if (ESP_OK == nvs_get_u8(nvs_handle, "claudia", &val)) {
+      s_claudiaMode = (val == 1);
+    }
+    nvs_close(nvs_handle);
+  }
+  Serial.printf("[Mode] Loaded: %s\n", s_claudiaMode ? "claudia" : "chatgpt");
+}
+
+static void save_claudia_mode(bool enable) {
+  uint32_t nvs_handle;
+  if (ESP_OK == nvs_open("ai_mode", NVS_READWRITE, &nvs_handle)) {
+    nvs_set_u8(nvs_handle, "claudia", enable ? 1 : 0);
+    nvs_commit(nvs_handle);
+    nvs_close(nvs_handle);
+  }
+}
+
 
 static void report_batt_level(){
   char buff[100];
@@ -102,8 +127,13 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
   Serial.println("音声認識結果");
   if(ret != "") {
     Serial.println(ret);
-    if (s_claudiaBusy) {
-      // 処理中は無視
+    if (!s_claudiaMode) {
+      // ChatGPT モード：既存の処理
+      playAckSound(system_config.getExConfig());
+      robot->chat(ret, base64_buf);
+      avatar.setSpeechText("");
+    } else if (s_claudiaBusy) {
+      // クローディアモード・ビジー時は無視
       Serial.println("[Claudia] Busy, ignoring command");
       avatar.setExpression(Expression::Doubt);
       avatar.setSpeechText("考え中です...");
@@ -111,7 +141,7 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
       avatar.setSpeechText("");
       if (s_moodManager) stackChanMind.applyExpression();
     } else {
-      // コマンドをキューに積む
+      // クローディアモード：コマンドをキューに積む
       s_claudiaBusy = true;
       s_commandCounter++;
       s_pendingCommandId   = String(s_commandCounter);
@@ -203,6 +233,9 @@ AiStackChanMod::AiStackChanMod(bool _isOffline)
     wakeword_init();
 #endif
   }
+
+  // モード設定を NVS から読み込み
+  load_claudia_mode();
 
   // アイドル時の頭の動きを設定
   s_headCtrl    = &_headCtrl;
@@ -605,6 +638,16 @@ String AiStackChanMod::getPendingCommandJson() {
     return "{\"command_id\":\"" + s_pendingCommandId + "\",\"text\":\"" + escaped + "\"}";
   }
   return "{\"command_id\":null}";
+}
+
+bool AiStackChanMod::getClaudiaMode() {
+  return s_claudiaMode;
+}
+
+void AiStackChanMod::setClaudiaMode(bool enable) {
+  s_claudiaMode = enable;
+  save_claudia_mode(enable);
+  Serial.printf("[Mode] Changed to: %s\n", enable ? "claudia" : "chatgpt");
 }
 
 void AiStackChanMod::receiveCommandResult(const String& voice_text) {
