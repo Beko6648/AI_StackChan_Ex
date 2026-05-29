@@ -3,7 +3,7 @@
 ## 概要
 StackChan を UI として Claude Code を操作する機能。ユーザーが StackChan に音声で指示を出すと、Claude Code が実行して結果を音声で返す。
 
-**ステータス：** 設計確定（2026-05-29）  
+**ステータス：** 実装完了・動作確認済み（2026-05-29）  
 **セキュリティ：** ローカルネットワーク内のみ  
 
 ---
@@ -11,20 +11,19 @@ StackChan を UI として Claude Code を操作する機能。ユーザーが S
 ## アーキテクチャ
 
 ```
-boot.ps1
+claude_boot.ps1（pwsh で手動起動）
   ├── メインセッション（Beko ↔ Claude Code）  ← 通常の対話
-  └── ポーリングスクリプト（常駐・別プロセス）
-        ↓ StackChan からコマンド検出
-        ↓
-        claude -p "コマンド" --resume stackchan-session
-        （StackChan 専用セッションで処理）
+  └── polling.ps1（常駐・別プロセス・最小化ウィンドウ）
+        ↓ 500ms ごとに StackChan をポーリング
+        ↓ コマンド検出
+        ↓ claude -p でレスポンス生成
         ↓
         結果を StackChan に POST
 ```
 
 **ポイント：**
-- メインセッションと StackChan 専用セッションは完全に独立
-- StackChan 専用セッションは `--session-id` / `--resume` でコンテキストを維持
+- polling.ps1 は claude_boot.ps1 起動時に自動で別プロセス起動
+- `claude -p` はステートレス（セッション引き継ぎなし）
 - メインセッションへの干渉なし
 
 ---
@@ -43,8 +42,7 @@ boot.ps1
    ↓
 5. 新しいコマンドを検出
    ↓
-6. StackChan 専用の Claude Code セッションで処理
-   claude -p "{コマンド}" --resume stackchan-session
+6. polling.ps1 が claude -p でレスポンスを生成
    ↓
 7. 処理結果を StackChan に返送
    POST http://192.168.1.114/command_result
@@ -96,23 +94,28 @@ boot.ps1
 
 ## Windows 側の実装（ポーリングスクリプト）
 
-### 処理フロー
+### 実装ファイル
+- `C:\ClaudeCode_work\claude_boot.ps1` — Claude Code 常駐起動 + polling.ps1 自動起動
+- `C:\ClaudeCode_work\polling.ps1` — StackChan ←→ Claude Code 橋渡し
+
+### 実行環境
+- **pwsh（PowerShell 7）で実行すること**
+- Windows PowerShell（5.x）だと UTF-8 エンコーディング問題で日本語が文字化けする
+- claude_boot.ps1 を pwsh で手動起動すれば polling.ps1 も自動で起動する
+
+### 処理フロー（実装済み）
 ```powershell
-# polling.ps1（常駐スクリプト）
+# polling.ps1（抜粋）
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 while ($true) {
-    # 1. StackChan に確認
-    $res = Invoke-RestMethod -Uri "http://192.168.1.114/pending_command" -Method GET
+    $res = Invoke-RestMethod -Uri "http://192.168.1.114/pending_command" -Method GET -TimeoutSec 2
 
-    if ($res.command_id -ne $null) {
-        # 2. StackChan 専用セッションで処理
-        $result = claude -p $res.text --resume "stackchan-session"
+    if ($null -ne $res.command_id) {
+        $voice = (claude -p $prompt 2>$null)
 
-        # 3. 結果を返送
-        $body = @{
-            command_id  = $res.command_id
-            voice_text  = $result  # Claude が voice_text / detail_text を含む JSON を出力
-            detail_text = ""
-        } | ConvertTo-Json
+        $body = (@{ command_id = $res.command_id; voice_text = $voice } | ConvertTo-Json -Compress)
         Invoke-RestMethod -Uri "http://192.168.1.114/command_result" -Method POST -Body $body -ContentType "application/json"
     }
 
@@ -120,10 +123,9 @@ while ($true) {
 }
 ```
 
-### StackChan 専用セッションの管理
-- `--session-id` で固定 UUID を指定（初回）
-- 以降は `--resume` で同じセッションを継続
-- コンテキストが維持されるため、会話の連続性がある
+### 注意事項
+- polling.ps1 の編集は **VS Code でコピペ**すること（Claude Code のツール直書きだとスマートクォートが混入してエラーになる）
+- claude_boot.ps1 を複数回起動すると polling.ps1 が多重起動する。タスクマネージャーで pwsh プロセス数を確認すること
 
 ---
 
@@ -193,8 +195,9 @@ while ($true) {
 - [x] ビルド・動作確認（実機 CoreS3）
 
 ### Windows 側
-- [ ] ポーリングスクリプト（polling.ps1）実装
-- [ ] boot.ps1 にポーリングスクリプト起動を追加
+- [x] ポーリングスクリプト（polling.ps1）実装
+- [x] claude_boot.ps1 にポーリングスクリプト起動を追加（pwsh で自動起動）
+- [x] 実機動作確認（StackChan が日本語で応答）
 
 ---
 

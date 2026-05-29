@@ -440,6 +440,10 @@ messages[2] → User Info（長期記憶の要約テキスト）
 | `/servo_offset` | GET | サーボオフセット取得 |
 | `/servo_offset` | POST | サーボオフセット保存 |
 | `/sleep` | POST | 睡眠状態を操作する（`action=sleep` で就寝、`action=wakeup` で起床） |
+| `/pending_command` | GET | Claude Code 連携用：次のコマンドを返す（なければ `command_id: null`） |
+| `/command_result` | POST | Claude Code 連携用：レスポンスを受け取り VOICEVOX で読み上げ |
+| `/mode` | GET | 現在の AI モードを返す（`chatgpt` or `claude_code`） |
+| `/mode` | POST | AI モードを切り替える（NVS 保存、再起動後も維持） |
 
 ## Development Workflows
 
@@ -501,6 +505,7 @@ Known behaviors that differ from standard Arduino or desktop environments:
 - WebAPI device control (/status, /reboot)
 - Realtime API support
 - MCP (Model Context Protocol) in ChatGPT
+- Claude Code 連携（polling.ps1 + /pending_command・/command_result・/mode エンドポイント、Settings UI、AIモード切り替え）
 
 **Planned** (see `my_doc/FeatureMemo.md`):
 - Sound localization & face tracking (dual-mic TDOA)
