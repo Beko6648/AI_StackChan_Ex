@@ -150,6 +150,12 @@ while ($true) {
 - `/pending_command` で提供
 - `/command_result` 受信後にキューをクリア
 
+### 4. AI モード切り替え（WebAPI.cpp + Settings UI）
+- `GET /mode` — 現在のモードを返す（`chatgpt` or `claude_code`）
+- `POST /mode` — モードを切り替える（`{"mode": "chatgpt"}` or `{"mode": "claude_code"}`）
+- モードは NVS に保存され、再起動後も維持される（デフォルト：`chatgpt`）
+- `/settings.html` の AI Mode セクションから GUI で切り替え可能
+
 ---
 
 ## セキュリティ考慮
@@ -183,7 +189,8 @@ while ($true) {
 - [x] `/pending_command` エンドポイント実装（WebAPI.cpp）
 - [x] `/command_result` エンドポイント実装（WebAPI.cpp）
 - [x] コマンドキュー管理機能実装（AiStackChanMod）
-- [ ] ビルド・動作確認（実機 CoreS3）
+- [x] AI モード切り替え（GET/POST /mode、NVS保存、Settings UI）
+- [x] ビルド・動作確認（実機 CoreS3）
 
 ### Windows 側
 - [ ] ポーリングスクリプト（polling.ps1）実装
