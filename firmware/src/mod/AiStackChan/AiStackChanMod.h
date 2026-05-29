@@ -45,6 +45,12 @@ public:
 
     // WebAPI から呼ぶ：手動で起こす
     void requestManualWakeup();
+
+    // WebAPI から呼ぶ：保留コマンドを JSON で返す
+    String getPendingCommandJson();
+
+    // WebAPI から呼ぶ：クローディアの返答を受け取り TTS で読み上げる
+    void receiveCommandResult(const String& voice_text);
 };
 
 

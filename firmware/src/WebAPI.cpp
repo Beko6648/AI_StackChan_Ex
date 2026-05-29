@@ -543,6 +543,33 @@ void handle_status() {
     server.send(200, "application/json", json);
 }
 
+// クローディア連携：保留コマンドを返す
+void handle_pending_command() {
+    if (!g_ai_stackchan_mod) {
+        server.send(503, "application/json", "{\"error\":\"not initialized\"}");
+        return;
+    }
+    server.send(200, "application/json", g_ai_stackchan_mod->getPendingCommandJson());
+}
+
+// クローディア連携：返答を受け取り TTS で読み上げる
+void handle_command_result() {
+    if (server.method() != HTTP_POST) return;
+    if (!g_ai_stackchan_mod) {
+        server.send(503, "application/json", "{\"error\":\"not initialized\"}");
+        return;
+    }
+    String body = server.arg("plain");
+    DynamicJsonDocument doc(1024);
+    if (deserializeJson(doc, body)) {
+        server.send(400, "text/plain", "Invalid JSON");
+        return;
+    }
+    String voice_text = doc["voice_text"] | "";
+    g_ai_stackchan_mod->receiveCommandResult(voice_text);
+    server.send(200, "application/json", "{\"status\":\"OK\"}");
+}
+
 // デバイスを再起動する
 void handle_reboot() {
     server.send(200, "text/plain", "Rebooting...");
@@ -625,6 +652,8 @@ void init_web_server(void)
   server.on("/character_get", handle_character_get);
   server.on("/character_set", HTTP_POST, handle_character_set);
   server.on("/sleep", HTTP_POST, handle_sleep);
+  server.on("/pending_command", HTTP_GET, handle_pending_command);
+  server.on("/command_result", HTTP_POST, handle_command_result);
 
   // Other
   //

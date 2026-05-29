@@ -51,6 +51,12 @@ extern void alarm_tone();
 static HeadMotionController* s_headCtrl    = nullptr;
 static MoodManager*          s_moodManager = nullptr;
 
+// クローディア連携：コマンドキュー（サイズ1）
+static bool     s_claudiaBusy        = false;
+static String   s_pendingCommandId   = "";
+static String   s_pendingCommandText = "";
+static uint32_t s_commandCounter     = 0;
+
 
 static void report_batt_level(){
   char buff[100];
@@ -96,9 +102,25 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
   Serial.println("音声認識結果");
   if(ret != "") {
     Serial.println(ret);
-    playAckSound(system_config.getExConfig());  // 現在の感情に応じた相槌を再生
-    robot->chat(ret, base64_buf);
-    avatar.setSpeechText("");
+    if (s_claudiaBusy) {
+      // 処理中は無視
+      Serial.println("[Claudia] Busy, ignoring command");
+      avatar.setExpression(Expression::Doubt);
+      avatar.setSpeechText("考え中です...");
+      delay(2000);
+      avatar.setSpeechText("");
+      if (s_moodManager) stackChanMind.applyExpression();
+    } else {
+      // コマンドをキューに積む
+      s_claudiaBusy = true;
+      s_commandCounter++;
+      s_pendingCommandId   = String(s_commandCounter);
+      s_pendingCommandText = ret;
+      Serial.printf("[Claudia] Command queued: id=%s text=%s\n",
+                    s_pendingCommandId.c_str(), s_pendingCommandText.c_str());
+      playAckSound(system_config.getExConfig());
+      avatar.setSpeechText("クローディアに聞いています...");
+    }
     servo_home = true;
   } else {
     Serial.println("音声認識失敗");
@@ -525,8 +547,8 @@ void AiStackChanMod::idle(void)
     avatar.setExpression(_moodManager.getDominantExpression());
   }
 
-  // 自発発話チェック
-  if (_moodManager.shouldSpeak()) {
+  // 自発発話チェック（クローディア処理中は抑制）
+  if (_moodManager.shouldSpeak() && !s_claudiaBusy) {
     selfTalk();
   }
 
@@ -570,5 +592,30 @@ void AiStackChanMod::requestManualWakeup() {
     _sleepSoundPlayed = false;
     _headCtrl.setMotion(new IdleLookAround());
   }
+}
+
+String AiStackChanMod::getPendingCommandJson() {
+  if (s_claudiaBusy && !s_pendingCommandText.isEmpty()) {
+    // JSON エスケープ
+    String escaped = s_pendingCommandText;
+    escaped.replace("\\", "\\\\");
+    escaped.replace("\"", "\\\"");
+    escaped.replace("\n", "\\n");
+    escaped.replace("\r", "");
+    return "{\"command_id\":\"" + s_pendingCommandId + "\",\"text\":\"" + escaped + "\"}";
+  }
+  return "{\"command_id\":null}";
+}
+
+void AiStackChanMod::receiveCommandResult(const String& voice_text) {
+  Serial.printf("[Claudia] Result received: %s\n", voice_text.c_str());
+  avatar.setSpeechText("");
+  s_pendingCommandText = "";
+  s_claudiaBusy = false;
+  if (!voice_text.isEmpty()) {
+    robot->speech(voice_text);
+  }
+  servo_home = true;
+  if (s_headCtrl) s_headCtrl->setMotion(new IdleLookAround());
 }
 
