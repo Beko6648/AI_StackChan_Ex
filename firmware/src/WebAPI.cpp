@@ -549,7 +549,7 @@ void handle_mode_get() {
         server.send(503, "application/json", "{\"error\":\"not initialized\"}");
         return;
     }
-    String mode = g_ai_stackchan_mod->getClaudiaMode() ? "claudia" : "chatgpt";
+    String mode = g_ai_stackchan_mod->getClaudeCodeMode() ? "claude_code" : "chatgpt";
     server.send(200, "application/json", "{\"mode\":\"" + mode + "\"}");
 }
 
@@ -567,18 +567,18 @@ void handle_mode_set() {
         return;
     }
     String mode = doc["mode"] | "";
-    if (mode == "claudia") {
-        g_ai_stackchan_mod->setClaudiaMode(true);
-        server.send(200, "application/json", "{\"mode\":\"claudia\"}");
+    if (mode == "claude_code") {
+        g_ai_stackchan_mod->setClaudeCodeMode(true);
+        server.send(200, "application/json", "{\"mode\":\"claude_code\"}");
     } else if (mode == "chatgpt") {
-        g_ai_stackchan_mod->setClaudiaMode(false);
+        g_ai_stackchan_mod->setClaudeCodeMode(false);
         server.send(200, "application/json", "{\"mode\":\"chatgpt\"}");
     } else {
         server.send(400, "application/json", "{\"error\":\"invalid mode\"}");
     }
 }
 
-// クローディア連携：保留コマンドを返す
+// Claude Code 連携：保留コマンドを返す
 void handle_pending_command() {
     if (!g_ai_stackchan_mod) {
         server.send(503, "application/json", "{\"error\":\"not initialized\"}");
@@ -587,7 +587,7 @@ void handle_pending_command() {
     server.send(200, "application/json", g_ai_stackchan_mod->getPendingCommandJson());
 }
 
-// クローディア連携：返答を受け取り TTS で読み上げる
+// Claude Code 連携：返答を受け取り TTS で読み上げる
 void handle_command_result() {
     if (server.method() != HTTP_POST) return;
     if (!g_ai_stackchan_mod) {

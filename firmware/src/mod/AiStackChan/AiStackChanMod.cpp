@@ -52,31 +52,31 @@ extern void alarm_tone();
 static HeadMotionController* s_headCtrl    = nullptr;
 static MoodManager*          s_moodManager = nullptr;
 
-// クローディア連携：コマンドキュー（サイズ1）
-static bool     s_claudiaBusy        = false;
+// Claude Code 連携：コマンドキュー（サイズ1）
+static bool     s_ccBusy             = false;
 static String   s_pendingCommandId   = "";
 static String   s_pendingCommandText = "";
 static uint32_t s_commandCounter     = 0;
 
-// AI モード（false=ChatGPT, true=クローディア）。デフォルトは ChatGPT
-static bool s_claudiaMode = false;
+// AI モード（false=ChatGPT, true=Claude Code連携）。デフォルトは ChatGPT
+static bool s_ccMode = false;
 
-static void load_claudia_mode() {
+static void load_cc_mode() {
   uint32_t nvs_handle;
   if (ESP_OK == nvs_open("ai_mode", NVS_READONLY, &nvs_handle)) {
     uint8_t val = 0;
-    if (ESP_OK == nvs_get_u8(nvs_handle, "claudia", &val)) {
-      s_claudiaMode = (val == 1);
+    if (ESP_OK == nvs_get_u8(nvs_handle, "cc_mode", &val)) {
+      s_ccMode = (val == 1);
     }
     nvs_close(nvs_handle);
   }
-  Serial.printf("[Mode] Loaded: %s\n", s_claudiaMode ? "claudia" : "chatgpt");
+  Serial.printf("[Mode] Loaded: %s\n", s_ccMode ? "claude_code" : "chatgpt");
 }
 
-static void save_claudia_mode(bool enable) {
+static void save_cc_mode(bool enable) {
   uint32_t nvs_handle;
   if (ESP_OK == nvs_open("ai_mode", NVS_READWRITE, &nvs_handle)) {
-    nvs_set_u8(nvs_handle, "claudia", enable ? 1 : 0);
+    nvs_set_u8(nvs_handle, "cc_mode", enable ? 1 : 0);
     nvs_commit(nvs_handle);
     nvs_close(nvs_handle);
   }
@@ -127,29 +127,29 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
   Serial.println("音声認識結果");
   if(ret != "") {
     Serial.println(ret);
-    if (!s_claudiaMode) {
+    if (!s_ccMode) {
       // ChatGPT モード：既存の処理
       playAckSound(system_config.getExConfig());
       robot->chat(ret, base64_buf);
       avatar.setSpeechText("");
-    } else if (s_claudiaBusy) {
-      // クローディアモード・ビジー時は無視
-      Serial.println("[Claudia] Busy, ignoring command");
+    } else if (s_ccBusy) {
+      // Claude Code 連携モード・処理中は無視
+      Serial.println("[CC] Busy, ignoring command");
       avatar.setExpression(Expression::Doubt);
       avatar.setSpeechText("考え中です...");
       delay(2000);
       avatar.setSpeechText("");
       if (s_moodManager) stackChanMind.applyExpression();
     } else {
-      // クローディアモード：コマンドをキューに積む
-      s_claudiaBusy = true;
+      // Claude Code 連携モード：コマンドをキューに積む
+      s_ccBusy = true;
       s_commandCounter++;
       s_pendingCommandId   = String(s_commandCounter);
       s_pendingCommandText = ret;
-      Serial.printf("[Claudia] Command queued: id=%s text=%s\n",
+      Serial.printf("[CC] Command queued: id=%s text=%s\n",
                     s_pendingCommandId.c_str(), s_pendingCommandText.c_str());
       playAckSound(system_config.getExConfig());
-      avatar.setSpeechText("クローディアに聞いています...");
+      avatar.setSpeechText("Claude Codeに問い合わせています...");
     }
     servo_home = true;
   } else {
@@ -235,7 +235,7 @@ AiStackChanMod::AiStackChanMod(bool _isOffline)
   }
 
   // モード設定を NVS から読み込み
-  load_claudia_mode();
+  load_cc_mode();
 
   // アイドル時の頭の動きを設定
   s_headCtrl    = &_headCtrl;
@@ -580,8 +580,8 @@ void AiStackChanMod::idle(void)
     avatar.setExpression(_moodManager.getDominantExpression());
   }
 
-  // 自発発話チェック（クローディア処理中は抑制）
-  if (_moodManager.shouldSpeak() && !s_claudiaBusy) {
+  // 自発発話チェック（Claude Code 処理中は抑制）
+  if (_moodManager.shouldSpeak() && !s_ccBusy) {
     selfTalk();
   }
 
@@ -628,7 +628,7 @@ void AiStackChanMod::requestManualWakeup() {
 }
 
 String AiStackChanMod::getPendingCommandJson() {
-  if (s_claudiaBusy && !s_pendingCommandText.isEmpty()) {
+  if (s_ccBusy && !s_pendingCommandText.isEmpty()) {
     // JSON エスケープ
     String escaped = s_pendingCommandText;
     escaped.replace("\\", "\\\\");
@@ -640,21 +640,21 @@ String AiStackChanMod::getPendingCommandJson() {
   return "{\"command_id\":null}";
 }
 
-bool AiStackChanMod::getClaudiaMode() {
-  return s_claudiaMode;
+bool AiStackChanMod::getClaudeCodeMode() {
+  return s_ccMode;
 }
 
-void AiStackChanMod::setClaudiaMode(bool enable) {
-  s_claudiaMode = enable;
-  save_claudia_mode(enable);
-  Serial.printf("[Mode] Changed to: %s\n", enable ? "claudia" : "chatgpt");
+void AiStackChanMod::setClaudeCodeMode(bool enable) {
+  s_ccMode = enable;
+  save_cc_mode(enable);
+  Serial.printf("[Mode] Changed to: %s\n", enable ? "claude_code" : "chatgpt");
 }
 
 void AiStackChanMod::receiveCommandResult(const String& voice_text) {
-  Serial.printf("[Claudia] Result received: %s\n", voice_text.c_str());
+  Serial.printf("[CC] Result received: %s\n", voice_text.c_str());
   avatar.setSpeechText("");
   s_pendingCommandText = "";
-  s_claudiaBusy = false;
+  s_ccBusy = false;
   if (!voice_text.isEmpty()) {
     robot->speech(voice_text);
   }
