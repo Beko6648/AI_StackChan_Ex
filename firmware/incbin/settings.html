@@ -23,6 +23,10 @@
       cursor: pointer; transition: background 0.2s;
     }
     button:hover, button:active { background: #005fa3; }
+    .mode-btn { background: #ccc; color: #333; }
+    .mode-btn.active { background: #0077cc; color: #fff; }
+    .mode-btn:hover { background: #aaa; }
+    .mode-btn.active:hover { background: #005fa3; }
     .container {
       max-width: 32em; margin: auto;
       background: #fff; padding: 2em 1em;
@@ -61,6 +65,14 @@
       </div>
       <button type="button" id="saveOffsetButton">Save</button>
       <p class="note">保存後に再起動すると反映されます。</p>
+    </div>
+    <div class="section">
+      <h2>AI Mode</h2>
+      <div class="row">
+        <button type="button" id="modeChatGPT" class="mode-btn">ChatGPT</button>
+        <button type="button" id="modeClaudeCode" class="mode-btn">Claude Code</button>
+      </div>
+      <p class="note">Claude Code モードは外部エージェントとの連携が必要です。</p>
     </div>
     <div class="section">
       <h2>Power Management</h2>

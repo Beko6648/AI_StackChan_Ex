@@ -36,6 +36,41 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch((err) => showError('Error saving offset: ' + err.message));
   });
 
+  // AI Mode
+  const modeChatGPT    = document.getElementById('modeChatGPT');
+  const modeClaudeCode = document.getElementById('modeClaudeCode');
+
+  function updateModeButtons(mode) {
+    modeChatGPT.classList.toggle('active', mode === 'chatgpt');
+    modeClaudeCode.classList.toggle('active', mode === 'claude_code');
+  }
+
+  fetch('/mode')
+    .then(async (res) => {
+      if (!res.ok) throw new Error('Failed to get mode');
+      const data = await res.json();
+      updateModeButtons(data.mode);
+    })
+    .catch((err) => showError('Error loading mode: ' + err.message));
+
+  function setMode(mode) {
+    fetch('/mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: mode })
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        updateModeButtons(data.mode);
+        showStatus('AI Mode: ' + data.mode);
+      })
+      .catch((err) => showError('Error setting mode: ' + err.message));
+  }
+
+  modeChatGPT.addEventListener('click',    () => setMode('chatgpt'));
+  modeClaudeCode.addEventListener('click', () => setMode('claude_code'));
+
   // Sleep/Wakeup buttons
   const sleepButton = document.getElementById('sleepButton');
   const wakeupButton = document.getElementById('wakeupButton');
