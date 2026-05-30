@@ -54,10 +54,14 @@ static MoodManager*          s_moodManager = nullptr;
 
 // Claude Code 連携：コマンドキュー（サイズ1）
 static bool     s_ccBusy             = false;
+static uint32_t s_ccBusyStartMs      = 0;      // ビジー開始時刻（タイムアウト検出用）
 static String   s_pendingCommandId   = "";
 static String   s_pendingCommandText = "";
 static String   s_pendingCommandType = "";  // "user"=ユーザー発話, "self_talk"=自発発話
 static uint32_t s_commandCounter     = 0;
+
+// polling.ps1 からの返答が来ない場合に自動でビジー解除するタイムアウト（ミリ秒）
+static constexpr uint32_t CC_BUSY_TIMEOUT_MS = 30000;
 
 // AI モード（false=ChatGPT, true=Claude Code連携）。デフォルトは ChatGPT
 static bool s_ccMode = false;
@@ -103,7 +107,8 @@ static void dispatchChat(const String& prompt, const String& type, const char* b
     Serial.println("[CC] Busy, ignoring");
   } else {
     // Claude Code モード・空き：コマンドキューに積む
-    s_ccBusy = true;
+    s_ccBusy        = true;
+    s_ccBusyStartMs = millis();  // タイムアウト計測開始
     s_commandCounter++;
     s_pendingCommandId   = String(s_commandCounter);
     s_pendingCommandText = prompt;
@@ -611,6 +616,17 @@ void AiStackChanMod::idle(void)
     avatar.setExpression(_moodManager.getDominantExpression());
   }
 
+  // Claude Code ビジータイムアウトチェック
+  // polling.ps1 がクラッシュ等で /command_result を返さない場合、永久にビジーにならないよう自動解除する
+  if (s_ccBusy && (millis() - s_ccBusyStartMs > CC_BUSY_TIMEOUT_MS)) {
+    Serial.println("[CC] Busy timeout. Resetting.");
+    s_ccBusy = false;
+    s_pendingCommandText = "";
+    String timeoutText = (robot && robot->llm) ? robot->llm->getClaudeTimeoutText() : "頭がぼーっとしちゃった";
+    robot->speech(timeoutText);
+    if (s_headCtrl) s_headCtrl->setMotion(new IdleLookAround());
+  }
+
   // 自発発話チェック（Claude Code 処理中は抑制）
   if (_moodManager.shouldSpeak() && !s_ccBusy) {
     selfTalk();
@@ -675,10 +691,16 @@ String AiStackChanMod::getPendingCommandJson() {
     sysPrompt.replace("\n", "\\n");
     sysPrompt.replace("\r", "");
 
+    // Claude が応答できなかった場合に polling.ps1 が読み上げるフォールバック文言
+    String errText = (robot && robot->llm) ? robot->llm->getClaudeErrorText() : "ごめん、うまく考えられなかった。もう一回聞いてみて";
+    errText.replace("\\", "\\\\");
+    errText.replace("\"", "\\\"");
+
     return "{\"command_id\":\""    + s_pendingCommandId   +
            "\",\"text\":\""        + escaped              +
            "\",\"type\":\""        + s_pendingCommandType +
-           "\",\"system_prompt\":\"" + sysPrompt          + "\"}";
+           "\",\"system_prompt\":\"" + sysPrompt          +
+           "\",\"error_text\":\""  + errText              + "\"}";
   }
   return "{\"command_id\":null}";
 }
