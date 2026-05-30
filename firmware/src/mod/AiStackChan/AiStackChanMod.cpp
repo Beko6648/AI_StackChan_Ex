@@ -622,6 +622,7 @@ void AiStackChanMod::idle(void)
     Serial.println("[CC] Busy timeout. Resetting.");
     s_ccBusy = false;
     s_pendingCommandText = "";
+    avatar.setSpeechText("");
     String timeoutText = (robot && robot->llm) ? robot->llm->getClaudeTimeoutText() : "頭がぼーっとしちゃった";
     robot->speech(timeoutText);
     if (s_headCtrl) s_headCtrl->setMotion(new IdleLookAround());
