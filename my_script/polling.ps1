@@ -20,6 +20,8 @@ if (Test-Path $sessionFile) {
 } else {
     $sessionId      = [System.Guid]::NewGuid().ToString()
     $sessionCreated = $false
+    # 初回起動時に即座にセッションIDを保存（応答の有無に関わらず）
+    Set-Content -Path $sessionFile -Value $sessionId
     Write-Host ($tag + " 新規セッション: " + $sessionId)
 }
 
@@ -47,26 +49,24 @@ while ($true) {
             if (-not $sessionCreated) {
                 # 初回：--session-id で新規セッションを作成
                 if ($sysPrompt) {
-                    $voice = (claude -p $prompt --system-prompt $sysPrompt --session-id $sessionId --add-dir $claudeDir 2>$null)
+                    $voice = (claude -p $prompt --system-prompt $sysPrompt --session-id $sessionId --add-dir $claudeDir --model haiku 2>&1 | Out-String).Trim()
                 } else {
-                    $voice = (claude -p $prompt --session-id $sessionId --add-dir $claudeDir 2>$null)
+                    $voice = (claude -p $prompt --session-id $sessionId --add-dir $claudeDir 2>&1 | Out-String).Trim()
                 }
-                # 複数行が返ってきた場合、配列を1つの文字列に結合する
-                $voice = ($voice -join "`n").Trim()
-                if ($voice) {
-                    Set-Content -Path $sessionFile -Value $sessionId
-                    $sessionCreated = $true
-                    Write-Host ($tag + " セッション保存: " + $sessionId)
+                $sessionCreated = $true
+                if (-not $voice) {
+                    Write-Host ($tag + " [DEBUG] Claude returned empty on first query.")
                 }
             } else {
                 # 2回目以降：--resume でセッションを引き継ぐ
                 if ($sysPrompt) {
-                    $voice = (claude -p $prompt --system-prompt $sysPrompt --resume $sessionId --add-dir $claudeDir 2>$null)
+                    $voice = (claude -p $prompt --system-prompt $sysPrompt --resume $sessionId --add-dir $claudeDir 2>&1 | Out-String).Trim()
                 } else {
-                    $voice = (claude -p $prompt --resume $sessionId --add-dir $claudeDir 2>$null)
+                    $voice = (claude -p $prompt --resume $sessionId --add-dir $claudeDir 2>&1 | Out-String).Trim()
                 }
-                # 複数行が返ってきた場合、配列を1つの文字列に結合する
-                $voice = ($voice -join "`n").Trim()
+                if (-not $voice) {
+                    Write-Host ($tag + " [DEBUG] Claude returned empty.")
+                }
             }
 
             $errorText = if ($res.error_text) { $res.error_text } else { "ごめん、うまく考えられなかった。もう一回聞いてみて" }
