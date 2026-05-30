@@ -56,6 +56,7 @@ static MoodManager*          s_moodManager = nullptr;
 static bool     s_ccBusy             = false;
 static String   s_pendingCommandId   = "";
 static String   s_pendingCommandText = "";
+static String   s_pendingCommandType = "";  // "user"=ユーザー発話, "self_talk"=自発発話
 static uint32_t s_commandCounter     = 0;
 
 // AI モード（false=ChatGPT, true=Claude Code連携）。デフォルトは ChatGPT
@@ -82,6 +83,33 @@ static void save_cc_mode(bool enable) {
   }
 }
 
+
+// LLM への問い合わせを一元管理する関数。
+// ChatGPT モード → robot->chat() を直接呼ぶ。
+// Claude Code モード → コマンドキューに積んで polling.ps1 経由で処理する。
+// type: "user"=ユーザー発話, "self_talk"=自発発話
+static void dispatchChat(const String& prompt, const String& type, const char* base64_buf = nullptr) {
+  if (!s_ccMode) {
+    // ChatGPT モード：既存の LLM に直接渡す
+    if (base64_buf) {
+      robot->chat(prompt, base64_buf);
+    } else {
+      robot->chat(prompt);
+    }
+  } else if (s_ccBusy) {
+    // Claude Code モード・処理中は新しいコマンドを無視
+    Serial.println("[CC] Busy, ignoring");
+  } else {
+    // Claude Code モード・空き：コマンドキューに積む
+    s_ccBusy = true;
+    s_commandCounter++;
+    s_pendingCommandId   = String(s_commandCounter);
+    s_pendingCommandText = prompt;
+    s_pendingCommandType = type;
+    Serial.printf("[CC] Command queued: id=%s type=%s\n",
+                  s_pendingCommandId.c_str(), type.c_str());
+  }
+}
 
 static void report_batt_level(){
   char buff[100];
@@ -127,13 +155,8 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
   Serial.println("音声認識結果");
   if(ret != "") {
     Serial.println(ret);
-    if (!s_ccMode) {
-      // ChatGPT モード：既存の処理
-      playAckSound(system_config.getExConfig());
-      robot->chat(ret, base64_buf);
-      avatar.setSpeechText("");
-    } else if (s_ccBusy) {
-      // Claude Code 連携モード・処理中は無視
+    if (s_ccMode && s_ccBusy) {
+      // Claude Code モード・処理中はビジー表示して無視
       Serial.println("[CC] Busy, ignoring command");
       avatar.setExpression(Expression::Doubt);
       avatar.setSpeechText("考え中です...");
@@ -141,15 +164,16 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
       avatar.setSpeechText("");
       if (s_moodManager) stackChanMind.applyExpression();
     } else {
-      // Claude Code 連携モード：コマンドをキューに積む
-      s_ccBusy = true;
-      s_commandCounter++;
-      s_pendingCommandId   = String(s_commandCounter);
-      s_pendingCommandText = ret;
-      Serial.printf("[CC] Command queued: id=%s text=%s\n",
-                    s_pendingCommandId.c_str(), s_pendingCommandText.c_str());
+      // ChatGPT・Claude Code 共通：相槌を鳴らして dispatchChat に委譲
       playAckSound(system_config.getExConfig());
-      avatar.setSpeechText("Claude Codeに問い合わせています...");
+      dispatchChat(ret, "user", base64_buf);
+      if (!s_ccMode) {
+        // ChatGPT モードはチャット完了後にテキストをクリア
+        avatar.setSpeechText("");
+      } else {
+        // Claude Code モードはポーリング待ち中メッセージを表示
+        avatar.setSpeechText("Claude Codeに問い合わせています...");
+      }
     }
     servo_home = true;
   } else {
@@ -191,8 +215,13 @@ static void selfTalk() {
   }
   Serial.println("自発発話: " + prompt);
 
-  robot->chat(prompt);
-  avatar.setSpeechText("");
+  // ChatGPT・Claude Code どちらのモードでも dispatchChat 経由で処理
+  dispatchChat(prompt, "self_talk");
+  if (!s_ccMode) {
+    // ChatGPT モードはチャット完了後にテキストをクリア
+    // Claude Code モードは receiveCommandResult() で処理されるためここでは何もしない
+    avatar.setSpeechText("");
+  }
 
   if (s_moodManager) s_moodManager->onSelfTalk();
   if (s_headCtrl)    s_headCtrl->setMotion(new IdleLookAround());
@@ -629,13 +658,25 @@ void AiStackChanMod::requestManualWakeup() {
 
 String AiStackChanMod::getPendingCommandJson() {
   if (s_ccBusy && !s_pendingCommandText.isEmpty()) {
-    // JSON エスケープ
+    // テキストをJSONエスケープ
     String escaped = s_pendingCommandText;
     escaped.replace("\\", "\\\\");
     escaped.replace("\"", "\\\"");
     escaped.replace("\n", "\\n");
     escaped.replace("\r", "");
-    return "{\"command_id\":\"" + s_pendingCommandId + "\",\"text\":\"" + escaped + "\"}";
+
+    // キャラクターのシステムプロンプトを取得してJSONエスケープ
+    // ChatGPTモードと同じソース（SPIFFS保存済みのrole）を使うことで設定を一元管理
+    String sysPrompt = (robot && robot->llm) ? robot->llm->get_userRole() : "";
+    sysPrompt.replace("\\", "\\\\");
+    sysPrompt.replace("\"", "\\\"");
+    sysPrompt.replace("\n", "\\n");
+    sysPrompt.replace("\r", "");
+
+    return "{\"command_id\":\""    + s_pendingCommandId   +
+           "\",\"text\":\""        + escaped              +
+           "\",\"type\":\""        + s_pendingCommandType +
+           "\",\"system_prompt\":\"" + sysPrompt          + "\"}";
   }
   return "{\"command_id\":null}";
 }
