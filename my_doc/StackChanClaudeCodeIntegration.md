@@ -3,7 +3,7 @@
 ## 概要
 StackChan を UI として Claude Code を操作する機能。ユーザーが StackChan に音声で指示を出すと、Claude Code が実行して結果を音声で返す。
 
-**ステータス：** 実装完了・動作確認済み（2026-05-29）、機能拡張中（2026-05-30）  
+**ステータス：** 実装完了・動作確認済み（2026-05-30）  
 **セキュリティ：** ローカルネットワーク内のみ  
 
 ---
@@ -84,7 +84,8 @@ claude_boot.ps1（pwsh で手動起動）
     "command_id": "12",
     "text": "ユーザーが話した内容（type=user）/ 完全プロンプト（type=self_talk）",
     "type": "user | self_talk",
-    "system_prompt": "キャラクター YAML の system_prompt（ChatGPT モードと同一ソース）"
+    "system_prompt": "キャラクター YAML の system_prompt（ChatGPT モードと同一ソース）",
+    "error_text": "Claude が応答できなかった場合のフォールバック文言"
   }
   ```
 - **レスポンス（コマンドなし）：**
@@ -147,8 +148,9 @@ while ($true) {
 ```
 
 ### 注意事項
-- polling.ps1 の編集は **VS Code でコピペ**すること（Claude Code のツール直書きだとスマートクォートが混入してエラーになる）
+- polling.ps1 の編集は Claude Code の **Edit ツール**で直接可能（Write/Bash はスマートクォートを混入させるため使用不可）
 - claude_boot.ps1 を複数回起動すると polling.ps1 が多重起動する。タスクマネージャーで pwsh プロセス数を確認すること
+- セッションをリセットしたい場合は `stackchan_session.txt` を削除する
 
 ---
 
@@ -160,6 +162,8 @@ while ($true) {
 - **自発発話**：Claude Code モードでも `selfTalk()` が動作する。`type: "self_talk"` で通知し、polling.ps1 側でプロンプトをそのまま渡す
 - **TTS**：既存の `WebVoiceVoxTTS` を使用
 - **キュー**：サイズ1。処理中（pending_command あり）は新しい音声入力・自発発話をビジーとして無視
+- **ビジータイムアウト**：30秒以内に `/command_result` が来なければ自動でビジー解除。`claude_timeout_text` を読み上げる
+- **エラー・タイムアウト文言**：キャラクター YAML の `claude_error_text` / `claude_timeout_text` で設定可能。未設定時はデフォルト文言を使用
 
 ### 1. `dispatchChat()`（AiStackChanMod.cpp）
 - ユーザー発話・自発発話の送信先を一元管理する static 関数
@@ -168,7 +172,7 @@ while ($true) {
 
 ### 2. `/pending_command` エンドポイント（WebAPI.cpp）
 - コマンドキューから次のコマンドを JSON で返す
-- `command_id` / `text` / `type` / `system_prompt` を含む
+- `command_id` / `text` / `type` / `system_prompt` / `error_text` を含む
 - コマンドがなければ `{"command_id": null}` を返す
 
 ### 3. `/command_result` エンドポイント（WebAPI.cpp）
@@ -180,6 +184,22 @@ while ($true) {
 - `GET /mode` — 現在のモードを返す（`chatgpt` or `claude_code`）
 - `POST /mode` — モードを切り替える（NVS 保存、再起動後も維持、デフォルト：`chatgpt`）
 - `/settings.html` の AI Mode セクションから GUI で切り替え可能
+
+---
+
+## キャラクター YAML の Claude Code 用フィールド
+
+既存の `system_prompt` / `talk_prompt` / `self_talk_prompt` に加え、以下を設定可能。未設定時はデフォルト文言を使用。
+
+```yaml
+claude_error_text: "ごめん、うまく考えられなかった。もう一回聞いてみて"
+claude_timeout_text: "頭がぼーっとしちゃった"
+```
+
+| フィールド | 用途 | デフォルト |
+|---|---|---|
+| `claude_error_text` | Claude が空の応答を返したとき（polling.ps1 側） | ごめん、うまく考えられなかった。もう一回聞いてみて |
+| `claude_timeout_text` | 30秒以内に返答が来なかったとき（firmware 側） | 頭がぼーっとしちゃった |
 
 ---
 
@@ -217,16 +237,19 @@ while ($true) {
 - [x] AI モード切り替え（GET/POST /mode、NVS保存、Settings UI）
 - [x] `dispatchChat()` によるユーザー発話・自発発話の一元管理
 - [x] Claude Code モードでの自発発話対応（type: "self_talk"）
-- [x] `/pending_command` に `type` / `system_prompt` フィールド追加
+- [x] `/pending_command` に `type` / `system_prompt` / `error_text` フィールド追加
+- [x] 30秒ビジータイムアウト（自動解除 + `claude_timeout_text` 読み上げ）
+- [x] エラー・タイムアウト文言をキャラクター YAML で設定可能
 - [x] ビルド・動作確認（実機 CoreS3）
 
 ### Windows 側
 - [x] ポーリングスクリプト（polling.ps1）実装
 - [x] claude_boot.ps1 にポーリングスクリプト起動を追加（pwsh で自動起動）
 - [x] セッション引き継ぎ（`--resume`、セッション ID を stackchan_session.txt に保存）
-- [x] 実機動作確認（StackChan が日本語で応答）
-- [ ] `type` フィールドに応じた処理分岐（user / self_talk）
-- [ ] `system_prompt` フィールドを `--system-prompt` で Claude に渡す
+- [x] `type` フィールドに応じた処理分岐（user / self_talk）
+- [x] `system_prompt` フィールドを `--system-prompt` で Claude に渡す
+- [x] `error_text` フィールドをフォールバック文言に使用
+- [x] 実機動作確認（StackChan が日本語で応答・自発発話・タイムアウト復帰）
 
 ---
 
