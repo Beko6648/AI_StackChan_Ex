@@ -5,10 +5,12 @@
 
 struct CharacterData {
     String systemPrompt;
-    String talkPrompt;  // 毎回の会話時に system role に追加する指示
+    String talkPrompt;          // 毎回の会話時に system role に追加する指示
     String selfTalkPrompt;      // 自発発話時のプロンプト
-    String voice;    // TTS 話者ID。空の場合は SC_ExConfig の tts.voice を使用
-    bool   memory = false;  // 長期記憶の有効・無効
+    String claudeErrorText;     // Claude Code が応答できなかったときの読み上げ文言
+    String claudeTimeoutText;   // Claude Code 待機タイムアウト時の読み上げ文言
+    String voice;               // TTS 話者ID。空の場合は SC_ExConfig の tts.voice を使用
+    bool   memory = false;      // 長期記憶の有効・無効
 };
 
 // SD カードの /characters/{name}.yaml からキャラクター設定を読み込む

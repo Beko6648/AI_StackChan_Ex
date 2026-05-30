@@ -45,6 +45,16 @@ public:
 
     // WebAPI から呼ぶ：手動で起こす
     void requestManualWakeup();
+
+    // WebAPI から呼ぶ：保留コマンドを JSON で返す
+    String getPendingCommandJson();
+
+    // WebAPI から呼ぶ：Claude Code の返答を受け取り TTS で読み上げる
+    void receiveCommandResult(const String& voice_text);
+
+    // WebAPI から呼ぶ：AI モード取得・設定（true=Claude Code連携, false=ChatGPT）
+    bool getClaudeCodeMode();
+    void setClaudeCodeMode(bool enable);
 };
 
 

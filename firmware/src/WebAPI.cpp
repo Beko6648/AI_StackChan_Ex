@@ -543,6 +543,76 @@ void handle_status() {
     server.send(200, "application/json", json);
 }
 
+// AI モード取得（GET /mode）
+// 現在の AI モードを JSON で返す。settings.html の初期表示に使用
+void handle_mode_get() {
+    if (!g_ai_stackchan_mod) {
+        server.send(503, "application/json", "{\"error\":\"not initialized\"}");
+        return;
+    }
+    String mode = g_ai_stackchan_mod->getClaudeCodeMode() ? "claude_code" : "chatgpt";
+    server.send(200, "application/json", "{\"mode\":\"" + mode + "\"}");
+}
+
+// AI モード切り替え（POST /mode）
+// body: {"mode":"claude_code"} または {"mode":"chatgpt"}
+// 設定は NVS に保存されるため再起動後も維持される
+void handle_mode_set() {
+    if (server.method() != HTTP_POST) return;
+    if (!g_ai_stackchan_mod) {
+        server.send(503, "application/json", "{\"error\":\"not initialized\"}");
+        return;
+    }
+    String body = server.arg("plain");
+    DynamicJsonDocument doc(128);
+    if (deserializeJson(doc, body)) {
+        server.send(400, "text/plain", "Invalid JSON");
+        return;
+    }
+    String mode = doc["mode"] | "";
+    if (mode == "claude_code") {
+        g_ai_stackchan_mod->setClaudeCodeMode(true);
+        server.send(200, "application/json", "{\"mode\":\"claude_code\"}");
+    } else if (mode == "chatgpt") {
+        g_ai_stackchan_mod->setClaudeCodeMode(false);
+        server.send(200, "application/json", "{\"mode\":\"chatgpt\"}");
+    } else {
+        server.send(400, "application/json", "{\"error\":\"invalid mode\"}");
+    }
+}
+
+// Claude Code 連携：保留コマンドを返す（GET /pending_command）
+// polling.ps1 が 500ms ごとにポーリングするエンドポイント。
+// コマンドがあれば command_id / text / type / system_prompt を返す。
+// コマンドがなければ {"command_id":null} を返す
+void handle_pending_command() {
+    if (!g_ai_stackchan_mod) {
+        server.send(503, "application/json", "{\"error\":\"not initialized\"}");
+        return;
+    }
+    server.send(200, "application/json", g_ai_stackchan_mod->getPendingCommandJson());
+}
+
+// Claude Code 連携：Claude の返答を受け取り TTS で読み上げる（POST /command_result）
+// body: {"command_id":"...", "voice_text":"読み上げるテキスト"}
+// 読み上げ後にビジーフラグを解除し、次のコマンドを受け付け可能にする
+void handle_command_result() {
+    if (server.method() != HTTP_POST) return;
+    if (!g_ai_stackchan_mod) {
+        server.send(503, "application/json", "{\"error\":\"not initialized\"}");
+        return;
+    }
+    String body = server.arg("plain");
+    DynamicJsonDocument doc(1024);
+    if (deserializeJson(doc, body)) {
+        server.send(400, "text/plain", "Invalid JSON");
+        return;
+    }
+    String voice_text = doc["voice_text"] | "";
+    g_ai_stackchan_mod->receiveCommandResult(voice_text);
+    server.send(200, "application/json", "{\"status\":\"OK\"}");
+}
+
 // デバイスを再起動する
 void handle_reboot() {
     server.send(200, "text/plain", "Rebooting...");
@@ -625,6 +695,10 @@ void init_web_server(void)
   server.on("/character_get", handle_character_get);
   server.on("/character_set", HTTP_POST, handle_character_set);
   server.on("/sleep", HTTP_POST, handle_sleep);
+  server.on("/mode", HTTP_GET, handle_mode_get);
+  server.on("/mode", HTTP_POST, handle_mode_set);
+  server.on("/pending_command", HTTP_GET, handle_pending_command);
+  server.on("/command_result", HTTP_POST, handle_command_result);
 
   // Other
   //

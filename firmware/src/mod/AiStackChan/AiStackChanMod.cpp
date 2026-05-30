@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <deque>
 #include <SD.h>
+#include <nvs.h>
 #include <SPIFFS.h>
 #include "mod/ModManager.h"
 #include "AiStackChanMod.h"
@@ -51,6 +52,71 @@ extern void alarm_tone();
 static HeadMotionController* s_headCtrl    = nullptr;
 static MoodManager*          s_moodManager = nullptr;
 
+// Claude Code 連携：コマンドキュー（サイズ1）
+static bool     s_ccBusy             = false;
+static uint32_t s_ccBusyStartMs      = 0;      // ビジー開始時刻（タイムアウト検出用）
+static String   s_pendingCommandId   = "";
+static String   s_pendingCommandText = "";
+static String   s_pendingCommandType = "";  // "user"=ユーザー発話, "self_talk"=自発発話
+static uint32_t s_commandCounter     = 0;
+
+// polling.ps1 からの返答が来ない場合に自動でビジー解除するタイムアウト（ミリ秒）
+static constexpr uint32_t CC_BUSY_TIMEOUT_MS = 30000;
+
+// AI モード（false=ChatGPT, true=Claude Code連携）。デフォルトは ChatGPT
+static bool s_ccMode = false;
+
+// 起動時に NVS から AI モード設定を読み込む。保存値がなければデフォルト（ChatGPT）のまま
+static void load_cc_mode() {
+  uint32_t nvs_handle;
+  if (ESP_OK == nvs_open("ai_mode", NVS_READONLY, &nvs_handle)) {
+    uint8_t val = 0;
+    if (ESP_OK == nvs_get_u8(nvs_handle, "cc_mode", &val)) {
+      s_ccMode = (val == 1);
+    }
+    nvs_close(nvs_handle);
+  }
+  Serial.printf("[Mode] Loaded: %s\n", s_ccMode ? "claude_code" : "chatgpt");
+}
+
+// AI モード設定を NVS に保存する。再起動後も設定が維持される
+static void save_cc_mode(bool enable) {
+  uint32_t nvs_handle;
+  if (ESP_OK == nvs_open("ai_mode", NVS_READWRITE, &nvs_handle)) {
+    nvs_set_u8(nvs_handle, "cc_mode", enable ? 1 : 0);
+    nvs_commit(nvs_handle);
+    nvs_close(nvs_handle);
+  }
+}
+
+
+// LLM への問い合わせを一元管理する関数。
+// ChatGPT モード → robot->chat() を直接呼ぶ。
+// Claude Code モード → コマンドキューに積んで polling.ps1 経由で処理する。
+// type: "user"=ユーザー発話, "self_talk"=自発発話
+static void dispatchChat(const String& prompt, const String& type, const char* base64_buf = nullptr) {
+  if (!s_ccMode) {
+    // ChatGPT モード：既存の LLM に直接渡す
+    if (base64_buf) {
+      robot->chat(prompt, base64_buf);
+    } else {
+      robot->chat(prompt);
+    }
+  } else if (s_ccBusy) {
+    // Claude Code モード・処理中は新しいコマンドを無視
+    Serial.println("[CC] Busy, ignoring");
+  } else {
+    // Claude Code モード・空き：コマンドキューに積む
+    s_ccBusy        = true;
+    s_ccBusyStartMs = millis();  // タイムアウト計測開始
+    s_commandCounter++;
+    s_pendingCommandId   = String(s_commandCounter);
+    s_pendingCommandText = prompt;
+    s_pendingCommandType = type;
+    Serial.printf("[CC] Command queued: id=%s type=%s\n",
+                  s_pendingCommandId.c_str(), type.c_str());
+  }
+}
 
 static void report_batt_level(){
   char buff[100];
@@ -96,9 +162,26 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
   Serial.println("音声認識結果");
   if(ret != "") {
     Serial.println(ret);
-    playAckSound(system_config.getExConfig());  // 現在の感情に応じた相槌を再生
-    robot->chat(ret, base64_buf);
-    avatar.setSpeechText("");
+    if (s_ccMode && s_ccBusy) {
+      // Claude Code モード・処理中はビジー表示して無視
+      Serial.println("[CC] Busy, ignoring command");
+      avatar.setExpression(Expression::Doubt);
+      avatar.setSpeechText("考え中です...");
+      delay(2000);
+      avatar.setSpeechText("");
+      if (s_moodManager) stackChanMind.applyExpression();
+    } else {
+      // ChatGPT・Claude Code 共通：相槌を鳴らして dispatchChat に委譲
+      playAckSound(system_config.getExConfig());
+      dispatchChat(ret, "user", base64_buf);
+      if (!s_ccMode) {
+        // ChatGPT モードはチャット完了後にテキストをクリア
+        avatar.setSpeechText("");
+      } else {
+        // Claude Code モードはポーリング待ち中メッセージを表示
+        avatar.setSpeechText("Claude Codeに問い合わせています...");
+      }
+    }
     servo_home = true;
   } else {
     Serial.println("音声認識失敗");
@@ -139,8 +222,13 @@ static void selfTalk() {
   }
   Serial.println("自発発話: " + prompt);
 
-  robot->chat(prompt);
-  avatar.setSpeechText("");
+  // ChatGPT・Claude Code どちらのモードでも dispatchChat 経由で処理
+  dispatchChat(prompt, "self_talk");
+  if (!s_ccMode) {
+    // ChatGPT モードはチャット完了後にテキストをクリア
+    // Claude Code モードは receiveCommandResult() で処理されるためここでは何もしない
+    avatar.setSpeechText("");
+  }
 
   if (s_moodManager) s_moodManager->onSelfTalk();
   if (s_headCtrl)    s_headCtrl->setMotion(new IdleLookAround());
@@ -181,6 +269,9 @@ AiStackChanMod::AiStackChanMod(bool _isOffline)
     wakeword_init();
 #endif
   }
+
+  // モード設定を NVS から読み込み
+  load_cc_mode();
 
   // アイドル時の頭の動きを設定
   s_headCtrl    = &_headCtrl;
@@ -525,8 +616,20 @@ void AiStackChanMod::idle(void)
     avatar.setExpression(_moodManager.getDominantExpression());
   }
 
-  // 自発発話チェック
-  if (_moodManager.shouldSpeak()) {
+  // Claude Code ビジータイムアウトチェック
+  // polling.ps1 がクラッシュ等で /command_result を返さない場合、永久にビジーにならないよう自動解除する
+  if (s_ccBusy && (millis() - s_ccBusyStartMs > CC_BUSY_TIMEOUT_MS)) {
+    Serial.println("[CC] Busy timeout. Resetting.");
+    s_ccBusy = false;
+    s_pendingCommandText = "";
+    avatar.setSpeechText("");
+    String timeoutText = (robot && robot->llm) ? robot->llm->getClaudeTimeoutText() : "頭がぼーっとしちゃった";
+    robot->speech(timeoutText);
+    if (s_headCtrl) s_headCtrl->setMotion(new IdleLookAround());
+  }
+
+  // 自発発話チェック（Claude Code 処理中は抑制）
+  if (_moodManager.shouldSpeak() && !s_ccBusy) {
     selfTalk();
   }
 
@@ -570,5 +673,63 @@ void AiStackChanMod::requestManualWakeup() {
     _sleepSoundPlayed = false;
     _headCtrl.setMotion(new IdleLookAround());
   }
+}
+
+String AiStackChanMod::getPendingCommandJson() {
+  if (s_ccBusy && !s_pendingCommandText.isEmpty()) {
+    // テキストをJSONエスケープ
+    String escaped = s_pendingCommandText;
+    escaped.replace("\\", "\\\\");
+    escaped.replace("\"", "\\\"");
+    escaped.replace("\n", "\\n");
+    escaped.replace("\r", "");
+
+    // キャラクターのシステムプロンプトを取得してJSONエスケープ
+    // ChatGPTモードと同じソース（SPIFFS保存済みのrole）を使うことで設定を一元管理
+    String sysPrompt = (robot && robot->llm) ? robot->llm->get_userRole() : "";
+    sysPrompt.replace("\\", "\\\\");
+    sysPrompt.replace("\"", "\\\"");
+    sysPrompt.replace("\n", "\\n");
+    sysPrompt.replace("\r", "");
+
+    // Claude が応答できなかった場合に polling.ps1 が読み上げるフォールバック文言
+    String errText = (robot && robot->llm) ? robot->llm->getClaudeErrorText() : "ごめん、うまく考えられなかった。もう一回聞いてみて";
+    errText.replace("\\", "\\\\");
+    errText.replace("\"", "\\\"");
+
+    return "{\"command_id\":\""    + s_pendingCommandId   +
+           "\",\"text\":\""        + escaped              +
+           "\",\"type\":\""        + s_pendingCommandType +
+           "\",\"system_prompt\":\"" + sysPrompt          +
+           "\",\"error_text\":\""  + errText              + "\"}";
+  }
+  return "{\"command_id\":null}";
+}
+
+// 現在の AI モードを返す（true=Claude Code連携, false=ChatGPT）
+bool AiStackChanMod::getClaudeCodeMode() {
+  return s_ccMode;
+}
+
+// AI モードを切り替えて NVS に保存する。WebAPI の /mode エンドポイントから呼ばれる
+void AiStackChanMod::setClaudeCodeMode(bool enable) {
+  s_ccMode = enable;
+  save_cc_mode(enable);
+  Serial.printf("[Mode] Changed to: %s\n", enable ? "claude_code" : "chatgpt");
+}
+
+// Claude Code からの返答を受け取って TTS で読み上げる。
+// polling.ps1 が /command_result に POST してきた際に WebAPI から呼ばれる。
+// 読み上げ完了後にビジーフラグを解除し、次のコマンドを受け付けられる状態に戻す
+void AiStackChanMod::receiveCommandResult(const String& voice_text) {
+  Serial.printf("[CC] Result received: %s\n", voice_text.c_str());
+  avatar.setSpeechText("");
+  s_pendingCommandText = "";
+  s_ccBusy = false;  // ビジー解除：次の音声入力・自発発話を受け付け可能にする
+  if (!voice_text.isEmpty()) {
+    robot->speech(voice_text);
+  }
+  servo_home = true;
+  if (s_headCtrl) s_headCtrl->setMotion(new IdleLookAround());
 }
 

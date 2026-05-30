@@ -41,6 +41,8 @@ protected:
   bool _enableMemory;
   String _talkPrompt = "";
   String _selfTalkPrompt     = "";
+  String _claudeErrorText    = "ごめん、うまく考えられなかった。もう一回聞いてみて";
+  String _claudeTimeoutText  = "頭がぼーっとしちゃった";
   bool save_system_prompt_to_spiffs();
   bool load_system_prompt_from_spiffs();
 
@@ -68,6 +70,12 @@ public:
 
   String getSelfTalkPrompt() const { return _selfTalkPrompt; };
   void setSelfTalkPrompt(const String& prompt) { _selfTalkPrompt = prompt; };
+
+  // Claude Code モード用エラー文言（YAMLで上書き可能）
+  String getClaudeErrorText()   const { return _claudeErrorText; };
+  void setClaudeErrorText(const String& text) { _claudeErrorText = text; };
+  String getClaudeTimeoutText() const { return _claudeTimeoutText; };
+  void setClaudeTimeoutText(const String& text) { _claudeTimeoutText = text; };
 
   // for async TTS
   //
