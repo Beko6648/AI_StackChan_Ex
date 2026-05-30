@@ -3,8 +3,9 @@
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
-$ip  = "192.168.1.114"
-$ms  = 500
+$ip          = "192.168.1.114"
+$ms          = 500
+$claudeDir   = "C:\ClaudeCode_work"  # クローディアの CLAUDE.md・メモリの参照先
 $pendingUrl  = "http://" + $ip + "/pending_command"
 $resultUrl   = "http://" + $ip + "/command_result"
 $ct          = "application/json"
@@ -47,9 +48,9 @@ while ($true) {
                 # 初回：--session-id で新規セッションを作成
                 # --add-dir でクローディアの CLAUDE.md・メモリを読み込む（ミニクローディア構成）
                 if ($sysPrompt) {
-                    $voice = (claude -p $prompt --system-prompt $sysPrompt --session-id $sessionId --add-dir "C:\ClaudeCode_work" 2>$null)
+                    $voice = (claude -p $prompt --system-prompt $sysPrompt --session-id $sessionId --add-dir $claudeDir 2>$null)
                 } else {
-                    $voice = (claude -p $prompt --session-id $sessionId --add-dir "C:\ClaudeCode_work" 2>$null)
+                    $voice = (claude -p $prompt --session-id $sessionId --add-dir $claudeDir 2>$null)
                 }
                 if ($voice) {
                     Set-Content -Path $sessionFile -Value $sessionId
@@ -59,9 +60,9 @@ while ($true) {
             } else {
                 # 2回目以降：--resume でセッションを引き継ぐ
                 if ($sysPrompt) {
-                    $voice = (claude -p $prompt --system-prompt $sysPrompt --resume $sessionId --add-dir "C:\ClaudeCode_work" 2>$null)
+                    $voice = (claude -p $prompt --system-prompt $sysPrompt --resume $sessionId --add-dir $claudeDir 2>$null)
                 } else {
-                    $voice = (claude -p $prompt --resume $sessionId --add-dir "C:\ClaudeCode_work" 2>$null)
+                    $voice = (claude -p $prompt --resume $sessionId --add-dir $claudeDir 2>$null)
                 }
             }
 
