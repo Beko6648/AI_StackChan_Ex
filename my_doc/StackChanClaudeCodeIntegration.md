@@ -119,38 +119,44 @@ claude_boot.ps1（pwsh で手動起動）
 ## Windows 側の実装（ポーリングスクリプト）
 
 ### 実装ファイル
-- `C:\ClaudeCode_work\claude_boot.ps1` — Claude Code 常駐起動 + polling.ps1 自動起動
-- `C:\ClaudeCode_work\polling.ps1` — StackChan ←→ Claude Code 橋渡し
+| ファイル | 場所 | 役割 |
+|---|---|---|
+| `claude_boot.ps1` | `C:\ClaudeCode_work\` | Claude Code 常駐起動・polling.ps1 自動起動 |
+| `polling.ps1` | `AI_StackChan_Ex/my_script/` | StackChan ←→ Claude Code 橋渡し（git管理） |
+| `claudia_session.txt` | `C:\ClaudeCode_work\` | クローディアのセッションID保存（初回起動後に自動生成） |
+| `stackchan_session.txt` | `AI_StackChan_Ex/my_script/` | StackChan セッションID保存（.gitignore済み） |
 
-### 実行環境
-- **pwsh（PowerShell 7）で実行すること**
-- Windows PowerShell（5.x）だと UTF-8 エンコーディング問題で日本語が文字化けする
-- claude_boot.ps1 を pwsh で手動起動すれば polling.ps1 も自動で起動する
-
-### 処理フロー（実装済み）
+### 自動起動
+タスクスケジューラ（TaskName: ClaudiaAutoStart）でログイン後30秒に自動起動。
 ```powershell
-# polling.ps1（抜粋）
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-while ($true) {
-    $res = Invoke-RestMethod -Uri "http://192.168.1.114/pending_command" -Method GET -TimeoutSec 2
-
-    if ($null -ne $res.command_id) {
-        $voice = (claude -p $prompt 2>$null)
-
-        $body = (@{ command_id = $res.command_id; voice_text = $voice } | ConvertTo-Json -Compress)
-        Invoke-RestMethod -Uri "http://192.168.1.114/command_result" -Method POST -Body $body -ContentType "application/json"
-    }
-
-    Start-Sleep -Milliseconds 500
-}
+# 手動登録コマンド（管理者権限の pwsh で実行）
+$action  = New-ScheduledTaskAction -Execute "pwsh.exe" `
+             -Argument '-NoExit -ExecutionPolicy Bypass -File "C:\ClaudeCode_work\claude_boot.ps1"' `
+             -WorkingDirectory "C:\ClaudeCode_work"
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$trigger.Delay = "PT30S"
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 -StartWhenAvailable
+Register-ScheduledTask -TaskName "ClaudiaAutoStart" -Action $action -Trigger $trigger -Settings $settings
 ```
 
+### セッション管理（claude_boot.ps1）
+- `claudia_session.txt` があれば `--resume` で固定セッションを継続
+- なければ `-c` で起動し、終了後にセッションIDを自動保存
+- 別セッションが挟まっても影響なし
+- リセット：`claudia_session.txt` を削除
+
+### ミニクローディア構成
+polling.ps1 は `--add-dir "C:\ClaudeCode_work"` を指定してクローディアの CLAUDE.md・メモリを共有する。
+StackChan がクローディアの記憶・人格を引き継ぐ「ミニクローディア」として動作する（意図的な設計）。
+
+### 実行環境
+- **pwsh（PowerShell 7）で実行すること**（Windows PowerShell 5.x は UTF-8 問題で日本語が文字化けする）
+- `$claudeDir = "C:\ClaudeCode_work"` で参照先を一元管理
+
 ### 注意事項
-- polling.ps1 の編集は Claude Code の **Edit ツール**で直接可能（Write/Bash はスマートクォートを混入させるため使用不可）
+- polling.ps1 の編集は Claude Code の **Edit ツール**で直接可能（Write/Bash はスマートクォート混入のため不可）
 - claude_boot.ps1 を複数回起動すると polling.ps1 が多重起動する。タスクマネージャーで pwsh プロセス数を確認すること
-- セッションをリセットしたい場合は `stackchan_session.txt` を削除する
+- StackChan セッションをリセットしたい場合は `stackchan_session.txt` を削除する
 
 ---
 
