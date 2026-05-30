@@ -179,7 +179,7 @@ static void STT_ChatGPT(const char *base64_buf = NULL) {
         avatar.setSpeechText("");
       } else {
         // Claude Code モードはポーリング待ち中メッセージを表示
-        avatar.setSpeechText("Claude Codeに問い合わせています...");
+        avatar.setSpeechText("考え中...");
       }
     }
     servo_home = true;
