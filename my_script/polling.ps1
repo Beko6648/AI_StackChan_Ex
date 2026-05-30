@@ -47,9 +47,9 @@ while ($true) {
             if (-not $sessionCreated) {
                 # 初回：--session-id で新規セッションを作成
                 if ($sysPrompt) {
-                    $voice = (claude -p $prompt --system-prompt $sysPrompt --session-id $sessionId 2>$null)
+                    $voice = (claude -p $prompt --system-prompt $sysPrompt --session-id $sessionId --add-dir $claudeDir 2>$null)
                 } else {
-                    $voice = (claude -p $prompt --session-id $sessionId 2>$null)
+                    $voice = (claude -p $prompt --session-id $sessionId --add-dir $claudeDir 2>$null)
                 }
                 # 複数行が返ってきた場合、配列を1つの文字列に結合する
                 $voice = ($voice -join "`n").Trim()
@@ -61,9 +61,9 @@ while ($true) {
             } else {
                 # 2回目以降：--resume でセッションを引き継ぐ
                 if ($sysPrompt) {
-                    $voice = (claude -p $prompt --system-prompt $sysPrompt --resume $sessionId 2>$null)
+                    $voice = (claude -p $prompt --system-prompt $sysPrompt --resume $sessionId --add-dir $claudeDir 2>$null)
                 } else {
-                    $voice = (claude -p $prompt --resume $sessionId 2>$null)
+                    $voice = (claude -p $prompt --resume $sessionId --add-dir $claudeDir 2>$null)
                 }
                 # 複数行が返ってきた場合、配列を1つの文字列に結合する
                 $voice = ($voice -join "`n").Trim()
