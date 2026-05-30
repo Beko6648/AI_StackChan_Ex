@@ -28,12 +28,12 @@ bool loadCharacter(const String& name, CharacterData& data) {
     }
 
     data.systemPrompt      = doc["system_prompt"].as<String>();
-    data.talkPrompt        = doc["talk_prompt"].as<String>();
-    data.selfTalkPrompt    = doc["self_talk_prompt"].as<String>();
-    data.claudeErrorText   = doc["claude_error_text"].as<String>();
-    data.claudeTimeoutText = doc["claude_timeout_text"].as<String>();
-    data.voice             = doc["voice"].as<String>();
-    data.memory            = doc["memory"] | false;
+    data.talkPrompt        = doc["talk_prompt"]        | "";
+    data.selfTalkPrompt    = doc["self_talk_prompt"]   | "";
+    data.claudeErrorText   = doc["claude_error_text"]  | "";
+    data.claudeTimeoutText = doc["claude_timeout_text"] | "";
+    data.voice             = doc["voice"]              | "";
+    data.memory            = doc["memory"]             | false;
 
     Serial.printf("[Character] Loaded: %s (voice=%s memory=%s)\n",
                   name.c_str(),
