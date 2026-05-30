@@ -3,7 +3,7 @@
 ## 概要
 StackChan を UI として Claude Code を操作する機能。ユーザーが StackChan に音声で指示を出すと、Claude Code が実行して結果を音声で返す。
 
-**ステータス：** 実装完了・動作確認済み（2026-05-29）  
+**ステータス：** 実装完了・動作確認済み（2026-05-29）、機能拡張中（2026-05-30）  
 **セキュリティ：** ローカルネットワーク内のみ  
 
 ---
@@ -23,32 +23,51 @@ claude_boot.ps1（pwsh で手動起動）
 
 **ポイント：**
 - polling.ps1 は claude_boot.ps1 起動時に自動で別プロセス起動
-- `claude -p` はステートレス（セッション引き継ぎなし）
+- `claude -p --resume` でセッションを引き継ぐ（会話の文脈が維持される）
 - メインセッションへの干渉なし
+- ユーザー発話・自発発話どちらも `dispatchChat()` 経由で一元管理
 
 ---
 
 ## 基本フロー
 
+### ユーザー発話（type: "user"）
 ```
 1. ユーザー → StackChan に音声で指示
    ↓
 2. StackChan が音声認識 → テキスト化
    ↓
-3. StackChan がコマンドをキューに保持（/pending_command で提供）
+3. dispatchChat(text, "user") → コマンドキューに積む
    ↓
-4. ポーリングスクリプト（Windows 側・常駐）が定期的に確認
+4. polling.ps1 が 500ms ごとに確認
    GET http://192.168.1.114/pending_command
+   → { command_id, text, type:"user", system_prompt }
    ↓
-5. 新しいコマンドを検出
+5. system_prompt をシステムプロンプトとして、text をユーザー質問として Claude に投げる
+   claude -p $text --system-prompt $systemPrompt --resume $sessionId
    ↓
-6. polling.ps1 が claude -p でレスポンスを生成
-   ↓
-7. 処理結果を StackChan に返送
+6. 結果を StackChan に返送
    POST http://192.168.1.114/command_result
-   { "voice_text": "読み上げる要点", "detail_text": "詳細情報" }
+   { "command_id": "...", "voice_text": "..." }
    ↓
-8. StackChan が VOICEVOX で voice_text を音声化・再生
+7. StackChan が VOICEVOX で voice_text を音声化・再生
+```
+
+### 自発発話（type: "self_talk"）
+```
+1. MoodManager が閾値を超える → selfTalk() が起動
+   ↓
+2. self_talk_prompt（キャラ YAML）＋気分説明をプロンプトに組み立て
+   ↓
+3. dispatchChat(prompt, "self_talk") → コマンドキューに積む
+   ↓
+4. polling.ps1 が検出
+   → { command_id, text: 完全プロンプト, type:"self_talk", system_prompt }
+   ↓
+5. text をそのまま Claude に投げる（system_prompt 不要）
+   claude -p $text --resume $sessionId
+   ↓
+6. 結果を StackChan に返送 → VOICEVOX で読み上げ
 ```
 
 ---
@@ -62,8 +81,10 @@ claude_boot.ps1（pwsh で手動起動）
 - **レスポンス（コマンドあり）：**
   ```json
   {
-    "command_id": "unique_id",
-    "text": "ユーザーが話した内容"
+    "command_id": "12",
+    "text": "ユーザーが話した内容（type=user）/ 完全プロンプト（type=self_talk）",
+    "type": "user | self_talk",
+    "system_prompt": "キャラクター YAML の system_prompt（ChatGPT モードと同一ソース）"
   }
   ```
 - **レスポンス（コマンドなし）：**
@@ -72,15 +93,17 @@ claude_boot.ps1（pwsh で手動起動）
     "command_id": null
   }
   ```
+- **type の使い分け：**
+  - `user` — polling.ps1 が `system_prompt` をシステムプロンプトとして設定し、`text` をユーザー質問として渡す
+  - `self_talk` — `text` に完全プロンプトが入っているので、そのまま Claude に渡す
 
 #### `/command_result` （ポーリングスクリプトが結果を送信）
 - **方式：** POST
 - **リクエスト：**
   ```json
   {
-    "command_id": "unique_id",
-    "voice_text": "読み上げる要点（短い。VOICEVOX で音声化）",
-    "detail_text": "詳細情報（長くても OK。画面表示など）"
+    "command_id": "12",
+    "voice_text": "読み上げるテキスト（VOICEVOX で音声化）"
   }
   ```
 - **レスポンス：**
@@ -132,30 +155,30 @@ while ($true) {
 ## ファームウェア側の実装範囲
 
 ### 設計決定事項
-- **音声入力の振り分け**：全ての音声入力を Claude Code に転送（既存 LLM は使用しない）
-- **voice_text**：`claude -p` の出力をそのまま渡す（全て読み上げ前提のプロンプト設計）
+- **発話の一元管理**：ユーザー発話・自発発話ともに `dispatchChat()` を経由してモードに応じた送信先に振り分ける
+- **システムプロンプトの一元管理**：`/pending_command` にキャラクター YAML の `system_prompt` を含めて渡す。ChatGPT モードと同一ソースを使うため設定が分散しない
+- **自発発話**：Claude Code モードでも `selfTalk()` が動作する。`type: "self_talk"` で通知し、polling.ps1 側でプロンプトをそのまま渡す
 - **TTS**：既存の `WebVoiceVoxTTS` を使用
-- **キュー**：サイズ1。処理中（pending_command あり）は新しい音声入力をビジーとして無視
+- **キュー**：サイズ1。処理中（pending_command あり）は新しい音声入力・自発発話をビジーとして無視
 
-### 1. `/pending_command` エンドポイント追加（WebAPI.cpp）
-- StackChan のコマンドキューから次のコマンドを返す
-- なければ `command_id: null` を返す
+### 1. `dispatchChat()`（AiStackChanMod.cpp）
+- ユーザー発話・自発発話の送信先を一元管理する static 関数
+- ChatGPT モード → `robot->chat()` を直接呼ぶ
+- Claude Code モード → コマンドキューに積んで polling.ps1 経由で処理
 
-### 2. `/command_result` エンドポイント追加（WebAPI.cpp）
-- ポーリングスクリプトからの結果を受け取る
-- `voice_text` を既存 WebVoiceVoxTTS で読み上げ
-- 受信後、キューをクリアして次の音声入力を受け付ける
+### 2. `/pending_command` エンドポイント（WebAPI.cpp）
+- コマンドキューから次のコマンドを JSON で返す
+- `command_id` / `text` / `type` / `system_prompt` を含む
+- コマンドがなければ `{"command_id": null}` を返す
 
-### 3. コマンドキュー管理（AiStackChanMod）
-- ユーザーの音声入力をテキスト化した後、キューに追加
-- 処理中（キューにコマンドあり）は新しい音声入力を無視
-- `/pending_command` で提供
-- `/command_result` 受信後にキューをクリア
+### 3. `/command_result` エンドポイント（WebAPI.cpp）
+- polling.ps1 からの返答テキストを受け取る
+- `voice_text` を VOICEVOX で読み上げ
+- 受信後にビジーフラグを解除し、次のコマンドを受け付け可能にする
 
 ### 4. AI モード切り替え（WebAPI.cpp + Settings UI）
 - `GET /mode` — 現在のモードを返す（`chatgpt` or `claude_code`）
-- `POST /mode` — モードを切り替える（`{"mode": "chatgpt"}` or `{"mode": "claude_code"}`）
-- モードは NVS に保存され、再起動後も維持される（デフォルト：`chatgpt`）
+- `POST /mode` — モードを切り替える（NVS 保存、再起動後も維持、デフォルト：`chatgpt`）
 - `/settings.html` の AI Mode セクションから GUI で切り替え可能
 
 ---
@@ -192,12 +215,18 @@ while ($true) {
 - [x] `/command_result` エンドポイント実装（WebAPI.cpp）
 - [x] コマンドキュー管理機能実装（AiStackChanMod）
 - [x] AI モード切り替え（GET/POST /mode、NVS保存、Settings UI）
+- [x] `dispatchChat()` によるユーザー発話・自発発話の一元管理
+- [x] Claude Code モードでの自発発話対応（type: "self_talk"）
+- [x] `/pending_command` に `type` / `system_prompt` フィールド追加
 - [x] ビルド・動作確認（実機 CoreS3）
 
 ### Windows 側
 - [x] ポーリングスクリプト（polling.ps1）実装
 - [x] claude_boot.ps1 にポーリングスクリプト起動を追加（pwsh で自動起動）
+- [x] セッション引き継ぎ（`--resume`、セッション ID を stackchan_session.txt に保存）
 - [x] 実機動作確認（StackChan が日本語で応答）
+- [ ] `type` フィールドに応じた処理分岐（user / self_talk）
+- [ ] `system_prompt` フィールドを `--system-prompt` で Claude に渡す
 
 ---
 
