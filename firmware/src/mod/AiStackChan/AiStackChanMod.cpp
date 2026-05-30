@@ -21,6 +21,7 @@
 #include "mood/MoodManager.h"
 #include "llm/ChatHistory.h"
 #include "head/IdleLookAround.h"
+#include "MetaTagParser.h"
 
 extern StackchanExConfig system_config;
 #if defined( ENABLE_CAMERA )
@@ -726,8 +727,13 @@ void AiStackChanMod::receiveCommandResult(const String& voice_text) {
   avatar.setSpeechText("");
   s_pendingCommandText = "";
   s_ccBusy = false;  // ビジー解除：次の音声入力・自発発話を受け付け可能にする
-  if (!voice_text.isEmpty()) {
-    robot->speech(voice_text);
+
+  // [META] タグから感情・気分を適用してタグを除去する（ChatGPT モードと共通処理）
+  String text = voice_text;
+  applyMetaTag(text);
+
+  if (!text.isEmpty()) {
+    robot->speech(text);
   }
   servo_home = true;
   if (s_headCtrl) s_headCtrl->setMotion(new IdleLookAround());

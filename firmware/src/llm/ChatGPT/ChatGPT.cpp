@@ -14,6 +14,7 @@
 #include "Robot.h"
 #include "StackChanMind.h"
 #include "mood/MoodManager.h"
+#include "MetaTagParser.h"
 
 using namespace m5avatar;
 extern Avatar avatar;
@@ -347,38 +348,8 @@ String ChatGPT::execChatGpt(String json_string, String& calledFunc) {
         response = String(data);
         std::replace(response.begin(),response.end(),'\n',' ');
 
-        // [META]...[/META] から感情名を抽出して更新し、タグを除去する
-        // LLMが全角【META】を出力する場合があるため半角に正規化する
-        response.replace("【META】",  "[META]");
-        response.replace("【/META】", "[/META]");
-        {
-          int metaStart = response.indexOf("[META]");
-          int metaEnd   = response.indexOf("[/META]");
-          if (metaStart >= 0 && metaEnd > metaStart) {
-            // 正常形式: [META]{...}[/META]
-            String metaContent = response.substring(metaStart + 6, metaEnd);
-            DynamicJsonDocument metaDoc(128);
-            if (!deserializeJson(metaDoc, metaContent)) {
-              const char* emotion = metaDoc["emotion"];
-              if (emotion) stackChanMind.setEmotion(String(emotion));
-              if (g_moodManager) {
-                if (metaDoc.containsKey("joy"))   g_moodManager->addJoy(metaDoc["joy"].as<float>());
-                if (metaDoc.containsKey("trust"))  g_moodManager->addTrust(metaDoc["trust"].as<float>());
-                Serial.printf("[META] joy=%.2f trust=%.2f\n",
-                              g_moodManager->getJoy(), g_moodManager->getTrust());
-              }
-            }
-            response = response.substring(0, metaStart) + response.substring(metaEnd + 7);
-            response.trim();
-          } else if (metaEnd >= 0) {
-            // 不正形式: [META]なしで[/META]が出現した場合は[/META]以降を全て除去
-            response = response.substring(0, metaEnd);
-            response.trim();
-          }
-          // 残存する[META][/META]タグを念のため除去
-          response.replace("[META]",  "");
-          response.replace("[/META]", "");
-        }
+        // [META]...[/META] タグを解析して感情を適用し、タグを除去する
+        applyMetaTag(response);
 
         calledFunc = String("");
       }
