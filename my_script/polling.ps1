@@ -5,12 +5,12 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $ip          = "192.168.1.114"
 $ms          = 500
-$claudeDir   = "C:\ClaudeCode_work"  # クローディアの CLAUDE.md・メモリの参照先
+$claudeDir   = "C:\StackChan_Claude"  # StackChan 専用環境（CLAUDE.md・メモリ）
 $pendingUrl  = "http://" + $ip + "/pending_command"
 $resultUrl   = "http://" + $ip + "/command_result"
 $ct          = "application/json"
 $tag         = ([char]91) + "polling" + ([char]93)
-$sessionFile = Join-Path $PSScriptRoot "stackchan_session.txt"
+$sessionFile = Join-Path $claudeDir "stackchan_session.txt"
 
 # セッションID管理
 if (Test-Path $sessionFile) {
@@ -45,13 +45,27 @@ while ($true) {
                 $sysPrompt = $res.system_prompt
             }
 
+            # デバッグ：system_prompt が実際に渡されてるか確認
+            if ($sysPrompt -and $sysPrompt.Length -gt 100) {
+                Write-Host ($tag + " [DEBUG] sysPrompt length: " + $sysPrompt.Length + " chars (first 80: " + $sysPrompt.Substring(0, 80) + ")")
+            } elseif (-not $sysPrompt) {
+                Write-Host ($tag + " [DEBUG] sysPrompt is empty or null")
+            }
+
             # claude -p でレスポンス生成（セッション管理付き）
             if (-not $sessionCreated) {
                 # 初回：--session-id で新規セッションを作成
                 if ($sysPrompt) {
+                    Write-Host ($tag + " [DEBUG] Calling claude with --system-prompt (length: " + $sysPrompt.Length + ")")
                     $voice = (claude -p $prompt --system-prompt $sysPrompt --session-id $sessionId --add-dir $claudeDir --model haiku 2>&1 | Out-String).Trim()
                 } else {
-                    $voice = (claude -p $prompt --session-id $sessionId --add-dir $claudeDir 2>&1 | Out-String).Trim()
+                    Write-Host ($tag + " [DEBUG] Calling claude WITHOUT --system-prompt")
+                    $voice = (claude -p $prompt --session-id $sessionId --add-dir $claudeDir --model haiku 2>&1 | Out-String).Trim()
+                }
+                if ($voice -match '\[META\]') {
+                    Write-Host ($tag + " [DEBUG] [META] tag found in response")
+                } else {
+                    Write-Host ($tag + " [DEBUG] NO [META] tag in response (first 80 chars: " + $voice.Substring(0, [Math]::Min(80, $voice.Length)) + ")")
                 }
                 $sessionCreated = $true
                 if (-not $voice) {
@@ -60,12 +74,27 @@ while ($true) {
             } else {
                 # 2回目以降：--resume でセッションを引き継ぐ
                 if ($sysPrompt) {
-                    $voice = (claude -p $prompt --system-prompt $sysPrompt --resume $sessionId --add-dir $claudeDir 2>&1 | Out-String).Trim()
+                    Write-Host ($tag + " [DEBUG] Calling claude --resume with --system-prompt (length: " + $sysPrompt.Length + ")")
+                    Write-Host "=== SYSTEM PROMPT ==="
+                    Write-Host $sysPrompt
+                    Write-Host "=== USER PROMPT ==="
+                    Write-Host $prompt
+                    Write-Host "=== CLAUDE RESPONSE ==="
+                    $voice = (claude -p $prompt --system-prompt $sysPrompt --resume $sessionId --add-dir $claudeDir --model haiku 2>&1 | Out-String).Trim()
                 } else {
-                    $voice = (claude -p $prompt --resume $sessionId --add-dir $claudeDir 2>&1 | Out-String).Trim()
+                    Write-Host ($tag + " [DEBUG] Calling claude --resume WITHOUT --system-prompt")
+                    Write-Host "=== USER PROMPT ==="
+                    Write-Host $prompt
+                    Write-Host "=== CLAUDE RESPONSE ==="
+                    $voice = (claude -p $prompt --resume $sessionId --add-dir $claudeDir --model haiku 2>&1 | Out-String).Trim()
                 }
-                if (-not $voice) {
-                    Write-Host ($tag + " [DEBUG] Claude returned empty.")
+                Write-Host $voice
+                Write-Host "=== END ==="
+
+                if ($voice -match '\[META\]') {
+                    Write-Host ($tag + " [DEBUG] [META] tag found in response")
+                } else {
+                    Write-Host ($tag + " [DEBUG] NO [META] tag in response (first 80 chars: " + $voice.Substring(0, [Math]::Min(80, $voice.Length)) + ")")
                 }
             }
 
