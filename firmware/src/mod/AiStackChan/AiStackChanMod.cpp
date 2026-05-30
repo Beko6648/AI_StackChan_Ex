@@ -62,6 +62,7 @@ static uint32_t s_commandCounter     = 0;
 // AI モード（false=ChatGPT, true=Claude Code連携）。デフォルトは ChatGPT
 static bool s_ccMode = false;
 
+// 起動時に NVS から AI モード設定を読み込む。保存値がなければデフォルト（ChatGPT）のまま
 static void load_cc_mode() {
   uint32_t nvs_handle;
   if (ESP_OK == nvs_open("ai_mode", NVS_READONLY, &nvs_handle)) {
@@ -74,6 +75,7 @@ static void load_cc_mode() {
   Serial.printf("[Mode] Loaded: %s\n", s_ccMode ? "claude_code" : "chatgpt");
 }
 
+// AI モード設定を NVS に保存する。再起動後も設定が維持される
 static void save_cc_mode(bool enable) {
   uint32_t nvs_handle;
   if (ESP_OK == nvs_open("ai_mode", NVS_READWRITE, &nvs_handle)) {
@@ -681,21 +683,26 @@ String AiStackChanMod::getPendingCommandJson() {
   return "{\"command_id\":null}";
 }
 
+// 現在の AI モードを返す（true=Claude Code連携, false=ChatGPT）
 bool AiStackChanMod::getClaudeCodeMode() {
   return s_ccMode;
 }
 
+// AI モードを切り替えて NVS に保存する。WebAPI の /mode エンドポイントから呼ばれる
 void AiStackChanMod::setClaudeCodeMode(bool enable) {
   s_ccMode = enable;
   save_cc_mode(enable);
   Serial.printf("[Mode] Changed to: %s\n", enable ? "claude_code" : "chatgpt");
 }
 
+// Claude Code からの返答を受け取って TTS で読み上げる。
+// polling.ps1 が /command_result に POST してきた際に WebAPI から呼ばれる。
+// 読み上げ完了後にビジーフラグを解除し、次のコマンドを受け付けられる状態に戻す
 void AiStackChanMod::receiveCommandResult(const String& voice_text) {
   Serial.printf("[CC] Result received: %s\n", voice_text.c_str());
   avatar.setSpeechText("");
   s_pendingCommandText = "";
-  s_ccBusy = false;
+  s_ccBusy = false;  // ビジー解除：次の音声入力・自発発話を受け付け可能にする
   if (!voice_text.isEmpty()) {
     robot->speech(voice_text);
   }

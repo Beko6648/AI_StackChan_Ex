@@ -36,7 +36,8 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch((err) => showError('Error saving offset: ' + err.message));
   });
 
-  // AI Mode
+  // AI モード切り替え
+  // ボタンのアクティブ状態を現在のモードに合わせて更新する
   const modeChatGPT    = document.getElementById('modeChatGPT');
   const modeClaudeCode = document.getElementById('modeClaudeCode');
 
@@ -45,6 +46,7 @@ document.addEventListener('DOMContentLoaded', function () {
     modeClaudeCode.classList.toggle('active', mode === 'claude_code');
   }
 
+  // ページ読み込み時に現在のモードを取得してボタンに反映
   fetch('/mode')
     .then(async (res) => {
       if (!res.ok) throw new Error('Failed to get mode');
@@ -53,6 +55,7 @@ document.addEventListener('DOMContentLoaded', function () {
     })
     .catch((err) => showError('Error loading mode: ' + err.message));
 
+  // モードを切り替えて結果をボタンに反映する
   function setMode(mode) {
     fetch('/mode', {
       method: 'POST',

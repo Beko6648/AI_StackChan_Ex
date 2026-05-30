@@ -543,7 +543,8 @@ void handle_status() {
     server.send(200, "application/json", json);
 }
 
-// AI モード取得
+// AI モード取得（GET /mode）
+// 現在の AI モードを JSON で返す。settings.html の初期表示に使用
 void handle_mode_get() {
     if (!g_ai_stackchan_mod) {
         server.send(503, "application/json", "{\"error\":\"not initialized\"}");
@@ -553,7 +554,9 @@ void handle_mode_get() {
     server.send(200, "application/json", "{\"mode\":\"" + mode + "\"}");
 }
 
-// AI モード切り替え
+// AI モード切り替え（POST /mode）
+// body: {"mode":"claude_code"} または {"mode":"chatgpt"}
+// 設定は NVS に保存されるため再起動後も維持される
 void handle_mode_set() {
     if (server.method() != HTTP_POST) return;
     if (!g_ai_stackchan_mod) {
@@ -578,7 +581,10 @@ void handle_mode_set() {
     }
 }
 
-// Claude Code 連携：保留コマンドを返す
+// Claude Code 連携：保留コマンドを返す（GET /pending_command）
+// polling.ps1 が 500ms ごとにポーリングするエンドポイント。
+// コマンドがあれば command_id / text / type / system_prompt を返す。
+// コマンドがなければ {"command_id":null} を返す
 void handle_pending_command() {
     if (!g_ai_stackchan_mod) {
         server.send(503, "application/json", "{\"error\":\"not initialized\"}");
@@ -587,7 +593,9 @@ void handle_pending_command() {
     server.send(200, "application/json", g_ai_stackchan_mod->getPendingCommandJson());
 }
 
-// Claude Code 連携：返答を受け取り TTS で読み上げる
+// Claude Code 連携：Claude の返答を受け取り TTS で読み上げる（POST /command_result）
+// body: {"command_id":"...", "voice_text":"読み上げるテキスト"}
+// 読み上げ後にビジーフラグを解除し、次のコマンドを受け付け可能にする
 void handle_command_result() {
     if (server.method() != HTTP_POST) return;
     if (!g_ai_stackchan_mod) {
