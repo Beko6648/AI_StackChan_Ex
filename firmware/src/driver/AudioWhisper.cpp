@@ -1,6 +1,5 @@
 #include <M5Unified.h>
 #include "AudioWhisper.h"
-#include "esp32s3/rom/cache.h"
 
 //constexpr size_t record_number = 300/2;
 constexpr size_t record_number = 400;
@@ -14,10 +13,14 @@ AudioWhisper::AudioWhisper() {
   const auto size = record_size * sizeof(int16_t) + headerSize;
   record_buffer = static_cast<byte*>(::heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   ::memset(record_buffer, 0, size);
+  // VAD 用一時バッファを DRAM（DMA アクセス可能領域）に確保
+  tmp_buffer = static_cast<int16_t*>(::heap_caps_malloc(record_length * sizeof(int16_t),
+                                                         MALLOC_CAP_8BIT | MALLOC_CAP_DMA));
 }
 
 AudioWhisper::~AudioWhisper() {
-  delete record_buffer;
+  ::heap_caps_free(record_buffer);  // heap_caps_malloc には heap_caps_free を使う
+  ::heap_caps_free(tmp_buffer);
 }
 
 size_t AudioWhisper::GetSize() const {
@@ -76,12 +79,6 @@ int16_t* MakeHeader(byte* header) {
   return (int16_t*)&header[headerSize];
 }
 
-// キャッシュ無効化後に RMS を計算（DMA 書き込み後に CPU で正しく読むため）
-static float calcRMSWithCacheInvalidate(int16_t* data, int length) {
-  Cache_Invalidate_DCache_Items((uint32_t)data, length * sizeof(int16_t));
-  return calcRMS(data, length);
-}
-
 void AudioWhisper::Record() {
   M5.Mic.begin();
 
@@ -93,14 +90,19 @@ void AudioWhisper::Record() {
 
   auto *wavData = MakeHeader(record_buffer);
 
+  // DMA アクセス可能な DRAM バッファに録音して RMS を計算する。
+  // PSRAM に直接録音すると DMA キャッシュ問題で RMS が 0 になるため、
+  // DRAM バッファで RMS を計算してから PSRAM にコピーする。
+
   // フェーズ1: ノイズフロアキャリブレーション
   float noiseFloor = 0;
   for (int i = 0; i < CALIB_CHUNKS; i++) {
-    auto data = &wavData[i * record_length];
-    M5.Mic.record(data, record_length, record_samplerate);
-    noiseFloor = max(noiseFloor, calcRMSWithCacheInvalidate(data, record_length));
+    M5.Mic.record(tmp_buffer, record_length, record_samplerate);
+    memcpy(&wavData[i * record_length], tmp_buffer, record_length * sizeof(int16_t));
+    noiseFloor = max(noiseFloor, calcRMS(tmp_buffer, record_length));
   }
   noiseFloor      = max(noiseFloor, 100.0f);
+  noiseFloor      = min(noiseFloor, 500.0f);  // キャリブ中に声を拾っても閾値が跳ね上がらないよう上限を設定
   float threshold = noiseFloor * SPEECH_THRESHOLD_MULT;
 
   Serial.printf("[Audio] noiseFloor=%.1f threshold=%.1f\n", noiseFloor, threshold);
@@ -111,11 +113,11 @@ void AudioWhisper::Record() {
   int  actual_chunks  = CALIB_CHUNKS;
 
   for (int i = CALIB_CHUNKS; i < (int)record_number; i++) {
-    auto data = &wavData[i * record_length];
-    M5.Mic.record(data, record_length, record_samplerate);
+    M5.Mic.record(tmp_buffer, record_length, record_samplerate);
+    memcpy(&wavData[i * record_length], tmp_buffer, record_length * sizeof(int16_t));
     actual_chunks = i + 1;
 
-    float rms = calcRMSWithCacheInvalidate(data, record_length);
+    float rms = calcRMS(tmp_buffer, record_length);
 
     if (rms > threshold) {
       speech_started = true;
