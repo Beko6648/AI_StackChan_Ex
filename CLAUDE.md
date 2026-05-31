@@ -488,6 +488,7 @@ Known behaviors that differ from standard Arduino or desktop environments:
 - **`FILE_WRITE` は上書き（`"w"` モード）**: 既存ファイルを開くと内容が切り捨てられる。追記したい場合は `FILE_APPEND`（`"a"` モード）を使うこと。
 - **SD はマウント済み前提**: `WebAPI.cpp` などから SD を使う場合、`main.cpp` で `SD.begin()` が先に呼ばれていることを前提とする。
 - **新しい Web API エンドポイントはコミット前に必ず実機確認**: ビルドが通ってもランタイムの挙動が想定と異なることがある。curl やブラウザで実際のレスポンスを確認してからコミットすること。
+- **`M5.Mic.record()` はリアルタイム VAD に使えない（DMA キャッシュ問題）**: `M5.Mic.record(data, length, rate)` は I2S DMA でバッファに書き込むが、ESP32-S3 + PSRAM 環境ではキャッシュコヒーレンシの問題により、関数返却直後に `data` を CPU で読むと全て 0 になる。DMA が書いた値はキャッシュを通らないため CPU 側のキャッシュが古い値（0）を返す。Whisper/STT へ渡す時点では正しいデータが揃っている（DMA 完了済み）。リアルタイム VAD を実現するには `i2s_read()` を直接使って `esp_cache_msync()` でキャッシュ無効化が必要。
 
 ## Recent & Planned
 
