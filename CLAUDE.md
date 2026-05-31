@@ -489,6 +489,9 @@ Known behaviors that differ from standard Arduino or desktop environments:
 - **SD はマウント済み前提**: `WebAPI.cpp` などから SD を使う場合、`main.cpp` で `SD.begin()` が先に呼ばれていることを前提とする。
 - **新しい Web API エンドポイントはコミット前に必ず実機確認**: ビルドが通ってもランタイムの挙動が想定と異なることがある。curl やブラウザで実際のレスポンスを確認してからコミットすること。
 - **`M5.Mic.record()` はリアルタイム VAD に使えない（DMA キャッシュ問題）**: `M5.Mic.record(data, length, rate)` は I2S DMA でバッファに書き込むが、ESP32-S3 + PSRAM 環境ではキャッシュコヒーレンシの問題により、関数返却直後に `data` を CPU で読むと全て 0 になる。DMA が書いた値はキャッシュを通らないため CPU 側のキャッシュが古い値（0）を返す。Whisper/STT へ渡す時点では正しいデータが揃っている（DMA 完了済み）。リアルタイム VAD を実現するには `i2s_read()` を直接使って `esp_cache_msync()` でキャッシュ無効化が必要。
+- **リアルタイム VAD の将来実装方針**: `M5.Mic.record()` 直後に `esp_cache_msync(data, length * sizeof(int16_t), ESP_CACHE_MSYNC_FLAG_INVALIDATE)` を呼べばキャッシュが無効化されて正しい値が読める。または ESP-IDF の `i2s_read()` を直接使う（M5Unified の抽象化を迂回）。後者は VAD との組み合わせで「こんにちは」なら 0.5 秒で録音終了できる見込み。
+- **録音時間短縮のボトルネック優先順位**: 録音 3.75s（大・要 i2s_read 直接使用） > Whisper API 4〜7s（大・ローカルサーバーで 0.3s に） > VOICEVOX 0.5s（小・既に速い）。両方改善するなら「ローカル Whisper（RTX 5060 Ti）＋ i2s_read VAD」が最大効果の組み合わせ。
+- **録音開始直後のキャリブレーションチャンクは古い DMA データを含む**: 録音開始直後の数チャンクには DMA リングバッファに蓄積されていた以前の音が入る場合がある。ノイズフロア計測に使うと実際の環境ノイズとずれることがある。
 
 ## Recent & Planned
 
