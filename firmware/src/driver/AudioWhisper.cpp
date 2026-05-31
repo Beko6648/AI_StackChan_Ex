@@ -13,14 +13,10 @@ AudioWhisper::AudioWhisper() {
   const auto size = record_size * sizeof(int16_t) + headerSize;
   record_buffer = static_cast<byte*>(::heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   ::memset(record_buffer, 0, size);
-  // VAD 用一時バッファを DRAM（DMA アクセス可能領域）に確保
-  tmp_buffer = static_cast<int16_t*>(::heap_caps_malloc(record_length * sizeof(int16_t),
-                                                         MALLOC_CAP_8BIT | MALLOC_CAP_DMA));
 }
 
 AudioWhisper::~AudioWhisper() {
   ::heap_caps_free(record_buffer);  // heap_caps_malloc には heap_caps_free を使う
-  ::heap_caps_free(tmp_buffer);
 }
 
 size_t AudioWhisper::GetSize() const {
@@ -79,59 +75,48 @@ int16_t* MakeHeader(byte* header) {
   return (int16_t*)&header[headerSize];
 }
 
-void AudioWhisper::Record() {
-  M5.Mic.begin();
-
-  // VAD パラメータ
-  static const int   CALIB_CHUNKS          = 5;
-  static const float SPEECH_THRESHOLD_MULT = 3.0f;
-  static const int   SILENCE_HOLD_CHUNKS   = 15;  // 約550ms
-  static const int   MIN_SPEECH_CHUNKS     = 8;
-
-  auto *wavData = MakeHeader(record_buffer);
-
-  // DMA アクセス可能な DRAM バッファに録音して RMS を計算する。
-  // PSRAM に直接録音すると DMA キャッシュ問題で RMS が 0 になるため、
-  // DRAM バッファで RMS を計算してから PSRAM にコピーする。
-
-  // フェーズ1: ノイズフロアキャリブレーション
+// 録音後にバッファ全体を解析して末尾の無音チャンクを除いた実際のチャンク数を返す。
+// M5.Mic.record() は PSRAM への DMA 書き込みにキャッシュ問題があるため、
+// M5.Mic.end() 完了後（DMA 確定後）に読むことで正しい値が得られる。
+static int trimSilenceFromBuffer(const int16_t* wavData) {
+  // 先頭5チャンクのノイズフロアを計測
   float noiseFloor = 0;
-  for (int i = 0; i < CALIB_CHUNKS; i++) {
-    M5.Mic.record(tmp_buffer, record_length, record_samplerate);
-    memcpy(&wavData[i * record_length], tmp_buffer, record_length * sizeof(int16_t));
-    noiseFloor = max(noiseFloor, calcRMS(tmp_buffer, record_length));
+  for (int i = 0; i < 5; i++) {
+    noiseFloor = max(noiseFloor, calcRMS(&wavData[i * record_length], record_length));
   }
-  noiseFloor      = max(noiseFloor, 100.0f);
-  noiseFloor      = min(noiseFloor, 500.0f);  // キャリブ中に声を拾っても閾値が跳ね上がらないよう上限を設定
-  float threshold = noiseFloor * SPEECH_THRESHOLD_MULT;
+  noiseFloor = max(noiseFloor, 100.0f);
+  noiseFloor = min(noiseFloor, 500.0f);  // 声を拾っても跳ね上がらないよう上限を設定
+  float threshold = noiseFloor * 2.5f;
 
-  Serial.printf("[Audio] noiseFloor=%.1f threshold=%.1f\n", noiseFloor, threshold);
-
-  // フェーズ2〜4: 発話録音（リアルタイム VAD）
-  int  silence_count  = 0;
-  bool speech_started = false;
-  int  actual_chunks  = CALIB_CHUNKS;
-
-  for (int i = CALIB_CHUNKS; i < (int)record_number; i++) {
-    M5.Mic.record(tmp_buffer, record_length, record_samplerate);
-    memcpy(&wavData[i * record_length], tmp_buffer, record_length * sizeof(int16_t));
-    actual_chunks = i + 1;
-
-    float rms = calcRMS(tmp_buffer, record_length);
-
-    if (rms > threshold) {
-      speech_started = true;
-      silence_count  = 0;
-    } else if (speech_started) {
-      silence_count++;
-      if (silence_count >= SILENCE_HOLD_CHUNKS && actual_chunks >= MIN_SPEECH_CHUNKS) {
-        Serial.printf("[Audio] VAD: silence detected. chunks=%d\n", actual_chunks);
-        break;
-      }
+  // 末尾から走査して音声がある最後のチャンクを探す
+  int lastSpeechChunk = 5;
+  for (int i = 5; i < (int)record_number; i++) {
+    if (calcRMS(&wavData[i * record_length], record_length) > threshold) {
+      lastSpeechChunk = i;
     }
   }
 
+  // 末尾に余裕（約200ms = 10チャンク）を持たせる
+  int trimmed = min(lastSpeechChunk + 10, (int)record_number);
+  Serial.printf("[Audio] VAD trim: noiseFloor=%.1f threshold=%.1f lastSpeech=%d trimmed=%d (%.2fs)\n",
+                noiseFloor, threshold, lastSpeechChunk, trimmed,
+                (float)trimmed * record_length / record_samplerate);
+  return trimmed;
+}
+
+void AudioWhisper::Record() {
+  M5.Mic.begin();
+  auto *wavData = MakeHeader(record_buffer);
+
+  // 全チャンク録音（PSRAM への DMA 書き込みはキャッシュ問題があるため
+  // リアルタイム VAD は使わず、end() 後にポスト処理で末尾無音を除去する）
+  for (int i = 0; i < (int)record_number; ++i) {
+    M5.Mic.record(&wavData[i * record_length], record_length, record_samplerate);
+  }
   M5.Mic.end();
+
+  // end() 完了後（DMA 確定後）にバッファを解析して末尾の無音を除去
+  int actual_chunks = trimSilenceFromBuffer(wavData);
 
   // 実際の録音サイズで WAV ヘッダーを書き直す
   const int actualWavDataSize = actual_chunks * (int)record_length * 2;

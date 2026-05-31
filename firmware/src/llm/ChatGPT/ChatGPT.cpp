@@ -149,8 +149,8 @@ void ChatGPT::load_role(){
   serializeJson(chat_doc, InitBuffer);
   String json_str;
   serializeJsonPretty(chat_doc, json_str);
-  Serial.println("Initialized prompt:");
-  Serial.println(json_str);
+//  Serial.println("Initialized prompt:");
+//  Serial.println(json_str);
 }
 
 
@@ -180,9 +180,9 @@ String ChatGPT::https_post_json(const char* url, const char* json_string, const 
           // file found at server
           if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
             payload = https.getString();
-            Serial.println("//////////////");
-            Serial.println(payload);
-            Serial.println("//////////////");
+//            Serial.println("//////////////");
+//            Serial.println(payload);
+//            Serial.println("//////////////");
           }
         } else {
           Serial.printf("[HTTPS] POST... failed, error: %s\n", https.errorToString(httpCode).c_str());

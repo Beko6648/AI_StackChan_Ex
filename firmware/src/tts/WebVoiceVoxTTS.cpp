@@ -59,7 +59,7 @@ bool WebVoiceVoxTTS::voicevox_tts_json_status(const char* url, const char* json_
   DynamicJsonDocument doc(1000);
   String payload = https_get(url, root_ca);
   if(payload != ""){
-    Serial.println(payload);
+//    Serial.println(payload);
  //    StaticJsonDocument<1000> doc;
 //    JsonObject object = doc.as();
     DeserializationError error = deserializeJson(doc, payload.c_str());
@@ -98,7 +98,7 @@ String WebVoiceVoxTTS::voicevox_tts_url(const char* url, const char* root_ca) {
           // file found at server
           if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
             String payload = https.getString();
-            Serial.println(payload);
+//            Serial.println(payload);
             //StaticJsonDocument<1000> doc;
             DynamicJsonDocument doc(1024);
             DeserializationError error = deserializeJson(doc, payload.c_str());

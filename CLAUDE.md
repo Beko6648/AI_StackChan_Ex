@@ -492,6 +492,31 @@ Known behaviors that differ from standard Arduino or desktop environments:
 - **リアルタイム VAD の将来実装方針**: `M5.Mic.record()` 直後に `esp_cache_msync(data, length * sizeof(int16_t), ESP_CACHE_MSYNC_FLAG_INVALIDATE)` を呼べばキャッシュが無効化されて正しい値が読める。または ESP-IDF の `i2s_read()` を直接使う（M5Unified の抽象化を迂回）。後者は VAD との組み合わせで「こんにちは」なら 0.5 秒で録音終了できる見込み。
 - **録音時間短縮のボトルネック優先順位**: 録音 3.75s（大・要 i2s_read 直接使用） > Whisper API 4〜7s（大・ローカルサーバーで 0.3s に） > VOICEVOX 0.5s（小・既に速い）。両方改善するなら「ローカル Whisper（RTX 5060 Ti）＋ i2s_read VAD」が最大効果の組み合わせ。
 - **録音開始直後のキャリブレーションチャンクは古い DMA データを含む**: 録音開始直後の数チャンクには DMA リングバッファに蓄積されていた以前の音が入る場合がある。ノイズフロア計測に使うと実際の環境ノイズとずれることがある。
+- **`M5.Mic.record(data, ...)` に外部バッファを繰り返し渡すと I2S 状態が壊れる**: `M5.Mic.record()` は渡した `data` ポインタを DMA ディスクリプタの書き込み先として設定する。同じポインタを繰り返し渡すと、`M5.Mic.end()` 内の `i2s_driver_uninstall()` がそのポインタを「自分の DMA バッファ」として `free()` しようとしてヒープ破壊・クラッシュする。元の設計通り毎回異なる PSRAM アドレス（`&wavData[i * record_length]`）を渡すこと。外部 DRAM バッファを渡す方式はこの問題により使えない。
+- **`heap_caps_malloc` で確保したメモリには `heap_caps_free` を使う**: `heap_caps_malloc` で確保したメモリに `delete` を使うのは未定義動作。ヒープのメタデータが壊れて数回後にクラッシュする。必ず `heap_caps_free()` で解放すること。
+- **PSRAM の DMA 書き込みは `M5.Mic.end()` 完了後なら CPU から正しく読める**: `M5.Mic.record()` 直後に PSRAM を CPU で読むと DMA キャッシュ問題で 0 になるが、全チャンク録音完了後（`M5.Mic.end()` 後）なら正しい値が読める。これを利用してポスト処理 VAD（録音後にバッファを走査して末尾の無音を除去）を実装可能。録音時間は短縮できないが Whisper への送信サイズは削減できる。
+
+### VAD 実装の経緯まとめ（2026-06-01）
+
+目標: 録音時間を固定 3.75s から発話長に連動させる。
+
+**試みた方法と結果:**
+
+| アプローチ | 結果 | 断念理由 |
+|---|---|---|
+| PSRAM に直接録音してリアルタイム RMS 計算 | RMS が全て 0 | DMA キャッシュコヒーレンシ問題 |
+| `Cache_Invalidate_DCache_Items()` で PSRAM キャッシュ無効化 | 効果なし | PSRAM は内部 DCache の管轄外 |
+| DRAM の `tmp_buffer` に録音して RMS 計算→PSRAM にコピー | RMS 計算は成功したが数回後クラッシュ | M5.Mic.end() が tmp_buffer を free() しようとしてヒープ破壊 |
+| ポスト処理 VAD（全録音後にバッファ解析） | **安定動作** | 録音時間は短縮されないが Whisper 送信量は削減 |
+
+**現在の実装（`feature/vad-cache-invalidate` ブランチ）:**
+- 全 400 チャンク録音後に `M5.Mic.end()` を呼ぶ（I2S を安全に終了）
+- `M5.Mic.end()` 完了後に PSRAM バッファを走査して末尾の無音を除去
+- WAV ヘッダーと `GetSize()` を実際のサイズに更新
+- 効果: Whisper 送信量を約 25% 削減（録音時間は変わらず）
+
+**録音時間を本当に短縮するには:**
+`i2s_read()` を直接使って DMA を完全に制御する（M5Unified の抽象化を迂回）。これにより `break` による早期終了が安全にでき、「こんにちは」なら ~0.5 秒で録音完了できる見込み。実装難易度は高い。
 
 ## Recent & Planned
 
