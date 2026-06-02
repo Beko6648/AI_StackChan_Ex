@@ -81,25 +81,38 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
   const body = JSON.stringify({ command_id, voice_text: text });
   const url = `http://${STACKCHAN_IP}/command_result`;
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-      signal: AbortSignal.timeout(10000),
-    });
-    const status = res.status;
-    process.stderr.write(
-      `[webhook] reply → ${url} status=${status} voice_text="${text.substring(0, 30)}..."\n`
-    );
-    return { content: [{ type: "text", text: `sent (status=${status})` }] };
-  } catch (e: any) {
-    process.stderr.write(`[webhook] reply failed: ${e.message}\n`);
-    return {
-      content: [{ type: "text", text: `error: ${e.message}` }],
-      isError: true,
-    };
+  // ESP32 は送信中に自分の HTTP サーバーが塞がるため、リトライで待つ
+  const MAX_RETRY = 5;
+  const RETRY_DELAY_MS = 3000;
+  let lastError = "";
+
+  for (let i = 0; i < MAX_RETRY; i++) {
+    if (i > 0) {
+      await Bun.sleep(RETRY_DELAY_MS);
+      process.stderr.write(`[webhook] retry ${i}/${MAX_RETRY - 1}...\n`);
+    }
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(8000),
+      });
+      const status = res.status;
+      process.stderr.write(
+        `[webhook] reply → ${url} status=${status} voice_text="${text.substring(0, 30)}"\n`
+      );
+      return { content: [{ type: "text", text: `sent (status=${status})` }] };
+    } catch (e: any) {
+      lastError = e.message;
+      process.stderr.write(`[webhook] reply attempt ${i + 1} failed: ${e.message}\n`);
+    }
   }
+
+  return {
+    content: [{ type: "text", text: `error after ${MAX_RETRY} retries: ${lastError}` }],
+    isError: true,
+  };
 });
 
 await mcp.connect(new StdioServerTransport());

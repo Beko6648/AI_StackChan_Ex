@@ -63,7 +63,7 @@ static String   s_pendingCommandType = "";  // 後方互換（getPendingCommandJ
 static uint32_t s_commandCounter     = 0;
 
 // Webhook URL（NVS 保存。デフォルトは 192.168.1.114:8788）
-static String s_webhookUrl = "http://192.168.1.114:8788/";
+static String s_webhookUrl = "http://192.168.1.170:8788/";
 
 // クローディアからの返答が来ない場合に自動でビジー解除するタイムアウト（ミリ秒）
 static constexpr uint32_t CC_BUSY_TIMEOUT_MS = 30000;
