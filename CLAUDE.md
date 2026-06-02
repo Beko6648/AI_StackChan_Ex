@@ -516,6 +516,11 @@ Known behaviors that differ from standard Arduino or desktop environments:
   - my_script/webhook_channel.ts: Bun/TypeScript 製 MCP Channel サーバー
   - polling.ps1 は廃止（/pending_command は後方互換のため残存）
 
+- Manual sleep/wake via /sleep WebAPI and Settings UI button
+
+**In progress** (feature branches):
+- VAD（post-processing 末尾無音トリム）: `feature/vad-cache-invalidate`
+
 **Planned** (see `my_doc/FeatureMemo.md`):
 - Sound localization & face tracking (dual-mic TDOA)
 - Dream narration on wake-up
