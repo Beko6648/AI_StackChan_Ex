@@ -13,6 +13,7 @@
 #include "driver/WakeWord.h"
 #include "driver/ModuleLLM.h"
 #include <WiFiClientSecure.h>
+#include <HTTPClient.h>
 #include "Scheduler.h"
 #include "MySchedule.h"
 #include "share/SDUtil.h"
@@ -57,14 +58,17 @@ static MoodManager*          s_moodManager = nullptr;
 static bool     s_ccBusy             = false;
 static uint32_t s_ccBusyStartMs      = 0;      // ビジー開始時刻（タイムアウト検出用）
 static String   s_pendingCommandId   = "";
-static String   s_pendingCommandText = "";
-static String   s_pendingCommandType = "";  // "user"=ユーザー発話, "self_talk"=自発発話
+static String   s_pendingCommandText = "";  // 後方互換（getPendingCommandJson で使用）
+static String   s_pendingCommandType = "";  // 後方互換（getPendingCommandJson で使用）
 static uint32_t s_commandCounter     = 0;
 
-// polling.ps1 からの返答が来ない場合に自動でビジー解除するタイムアウト（ミリ秒）
+// Webhook URL（NVS 保存。デフォルトは 192.168.1.114:8788）
+static String s_webhookUrl = "http://192.168.1.170:8788/";
+
+// クローディアからの返答が来ない場合に自動でビジー解除するタイムアウト（ミリ秒）
 static constexpr uint32_t CC_BUSY_TIMEOUT_MS = 30000;
 
-// AI モード（false=ChatGPT, true=Claude Code連携）。デフォルトは ChatGPT
+// AI モード（false=ChatGPT, true=Claude Code Webhook連携）。デフォルトは ChatGPT
 static bool s_ccMode = false;
 
 // 起動時に NVS から AI モード設定を読み込む。保存値がなければデフォルト（ChatGPT）のまま
@@ -90,10 +94,55 @@ static void save_cc_mode(bool enable) {
   }
 }
 
+// Webhook URL を NVS からロードする
+static void load_webhook_url() {
+  uint32_t nvs_handle;
+  if (ESP_OK == nvs_open("cc_webhook", NVS_READONLY, &nvs_handle)) {
+    char buf[256] = {};
+    size_t len = sizeof(buf);
+    if (ESP_OK == nvs_get_str(nvs_handle, "url", buf, &len) && len > 1) {
+      s_webhookUrl = String(buf);
+    }
+    nvs_close(nvs_handle);
+  }
+  Serial.printf("[Webhook] URL: %s\n", s_webhookUrl.c_str());
+}
+
+// Webhook URL を NVS に保存する
+void AiStackChanMod::saveWebhookUrl(const String& url) {
+  s_webhookUrl = url;
+  uint32_t nvs_handle;
+  if (ESP_OK == nvs_open("cc_webhook", NVS_READWRITE, &nvs_handle)) {
+    nvs_set_str(nvs_handle, "url", url.c_str());
+    nvs_commit(nvs_handle);
+    nvs_close(nvs_handle);
+  }
+}
+
+String AiStackChanMod::getWebhookUrl() { return s_webhookUrl; }
+
+// Claude Code Webhook にテキストを POST する（非同期: FreeRTOS タスク）
+struct WebhookPostArgs {
+  String url;
+  String body;
+};
+
+static void webhook_post_task(void* param) {
+  auto* args = static_cast<WebhookPostArgs*>(param);
+  HTTPClient http;
+  http.begin(args->url);
+  http.addHeader("Content-Type", "application/json");
+  int code = http.POST(args->body);
+  Serial.printf("[Webhook] POST %s → %d\n", args->url.c_str(), code);
+  http.end();
+  delete args;
+  vTaskDelete(nullptr);
+}
+
 
 // LLM への問い合わせを一元管理する関数。
 // ChatGPT モード → robot->chat() を直接呼ぶ。
-// Claude Code モード → コマンドキューに積んで polling.ps1 経由で処理する。
+// Claude Code モード → Webhook に POST してクローディアに転送する。
 // type: "user"=ユーザー発話, "self_talk"=自発発話
 static void dispatchChat(const String& prompt, const String& type, const char* base64_buf = nullptr) {
   if (!s_ccMode) {
@@ -107,15 +156,27 @@ static void dispatchChat(const String& prompt, const String& type, const char* b
     // Claude Code モード・処理中は新しいコマンドを無視
     Serial.println("[CC] Busy, ignoring");
   } else {
-    // Claude Code モード・空き：コマンドキューに積む
+    // Claude Code Webhook モード：クローディアの Channels Webhook に POST
     s_ccBusy        = true;
-    s_ccBusyStartMs = millis();  // タイムアウト計測開始
+    s_ccBusyStartMs = millis();
     s_commandCounter++;
-    s_pendingCommandId   = String(s_commandCounter);
-    s_pendingCommandText = prompt;
-    s_pendingCommandType = type;
-    Serial.printf("[CC] Command queued: id=%s type=%s\n",
+    s_pendingCommandId = String(s_commandCounter);
+
+    // JSON ペイロードを構築
+    String escaped = prompt;
+    escaped.replace("\\", "\\\\");
+    escaped.replace("\"", "\\\"");
+    String body = "{\"command_id\":\""  + s_pendingCommandId +
+                  "\",\"text\":\""      + escaped +
+                  "\",\"type\":\""      + type +
+                  "\"}";
+
+    Serial.printf("[CC] Webhook POST: id=%s type=%s\n",
                   s_pendingCommandId.c_str(), type.c_str());
+
+    // FreeRTOS タスクで非同期 POST（HTTP は時間がかかるためメインループをブロックしない）
+    auto* args = new WebhookPostArgs{ s_webhookUrl, body };
+    xTaskCreate(webhook_post_task, "webhook_post", 8192, args, 1, nullptr);
   }
 }
 
@@ -271,8 +332,9 @@ AiStackChanMod::AiStackChanMod(bool _isOffline)
 #endif
   }
 
-  // モード設定を NVS から読み込み
+  // モード設定・Webhook URL を NVS から読み込み
   load_cc_mode();
+  load_webhook_url();
 
   // アイドル時の頭の動きを設定
   s_headCtrl    = &_headCtrl;

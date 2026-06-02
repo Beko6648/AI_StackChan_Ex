@@ -46,15 +46,19 @@ public:
     // WebAPI から呼ぶ：手動で起こす
     void requestManualWakeup();
 
-    // WebAPI から呼ぶ：保留コマンドを JSON で返す
+    // WebAPI から呼ぶ：保留コマンドを JSON で返す（後方互換・polling.ps1 向け）
     String getPendingCommandJson();
 
-    // WebAPI から呼ぶ：Claude Code の返答を受け取り TTS で読み上げる
+    // WebAPI から呼ぶ：クローディアの返答を受け取り TTS で読み上げる
     void receiveCommandResult(const String& voice_text);
 
-    // WebAPI から呼ぶ：AI モード取得・設定（true=Claude Code連携, false=ChatGPT）
+    // WebAPI から呼ぶ：AI モード取得・設定（true=Claude Code Webhook連携, false=ChatGPT）
     bool getClaudeCodeMode();
     void setClaudeCodeMode(bool enable);
+
+    // Webhook URL の取得・保存（NVS 永続化）
+    String getWebhookUrl();
+    void saveWebhookUrl(const String& url);
 };
 
 

@@ -697,8 +697,21 @@ void init_web_server(void)
   server.on("/sleep", HTTP_POST, handle_sleep);
   server.on("/mode", HTTP_GET, handle_mode_get);
   server.on("/mode", HTTP_POST, handle_mode_set);
-  server.on("/pending_command", HTTP_GET, handle_pending_command);
+  server.on("/pending_command", HTTP_GET, handle_pending_command);  // 後方互換（polling.ps1向け）
   server.on("/command_result", HTTP_POST, handle_command_result);
+  server.on("/webhook_url", HTTP_GET,  []() {
+    if (!g_ai_stackchan_mod) { server.send(503, "application/json", "{\"error\":\"not initialized\"}"); return; }
+    server.send(200, "application/json", "{\"url\":\"" + g_ai_stackchan_mod->getWebhookUrl() + "\"}");
+  });
+  server.on("/webhook_url", HTTP_POST, []() {
+    if (!g_ai_stackchan_mod) { server.send(503, "application/json", "{\"error\":\"not initialized\"}"); return; }
+    DynamicJsonDocument doc(256);
+    if (deserializeJson(doc, server.arg("plain"))) { server.send(400, "text/plain", "Invalid JSON"); return; }
+    String url = doc["url"] | "";
+    if (url.isEmpty()) { server.send(400, "text/plain", "url required"); return; }
+    g_ai_stackchan_mod->saveWebhookUrl(url);
+    server.send(200, "application/json", "{\"status\":\"OK\"}");
+  });
 
   // Other
   //
