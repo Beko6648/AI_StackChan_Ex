@@ -19,13 +19,27 @@ import json
 import subprocess
 import urllib.request
 import signal
+import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
+
+import logging
+from datetime import datetime
+
+# === ログ設定 ===
+LOG_FILE = os.environ.get("WEBHOOK_LOG", os.path.join(os.path.dirname(os.path.abspath(__file__)), "hermes_webhook.log"))
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+log = logging.getLogger("webhook")
 
 # === 設定（環境変数で上書き可能） ===
 STACKCHAN_IP = os.environ.get("STACKCHAN_IP", "192.168.1.114")
 WEBHOOK_PORT = int(os.environ.get("WEBHOOK_PORT", "8788"))
 HERMES_MODEL = os.environ.get("HERMES_MODEL", "")  # 空 = デフォルトモデル
-RESPONSE_TIMEOUT = int(os.environ.get("RESPONSE_TIMEOUT", "60"))
+RESPONSE_TIMEOUT = int(os.environ.get("RESPONSE_TIMEOUT", "120"))
 
 
 def process_with_hermes(text: str, system_prompt: str = "") -> str:
@@ -48,20 +62,28 @@ def process_with_hermes(text: str, system_prompt: str = "") -> str:
         prompt = f"{role_instruct}\n\n音声入力: {text}"
 
     # hermes chat -q でワンショット処理
-    cmd = ["hermes", "chat", "-q", prompt, "-Q"]
+    # Windows上で動いている場合は wsl 経由でHermesを呼ぶ
+    hermes_cmd = ["hermes"]
+    if sys.platform == "win32":
+        hermes_cmd = ["wsl", "/home/beko6648/.local/bin/hermes"]
+    cmd = hermes_cmd + ["chat", "-q", prompt, "-Q"]
     if HERMES_MODEL:
         cmd += ["-m", HERMES_MODEL]
 
+    log.info(f"running: {cmd[0]} ... (timeout={RESPONSE_TIMEOUT}s)")
+
     result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=RESPONSE_TIMEOUT
+        cmd, capture_output=True, text=True, timeout=RESPONSE_TIMEOUT,
+        encoding="utf-8", errors="replace"
     )
+
+    log.info(f"hermes exit={result.returncode}")
 
     response = result.stdout.strip()
     if not response:
-        response = "ごめん、うまく返せなかった"
+        response = result.stderr.strip() or "ごめん、うまく返せなかった"
 
     # 簡易クリーンアップ（マークダウン・引用等を除去）
-    import re
     response = re.sub(r'[\*_`#>|]', '', response)
     response = re.sub(r'\n{2,}', '\n', response).strip()
     return response
@@ -72,7 +94,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
         # JSON body を読み取り
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length).decode("utf-8")
-        sys.stderr.write(f"[webhook] ← {body[:120]}\n")
+        log.info(f"← {body[:200]}")
 
         try:
             data = json.loads(body)
@@ -90,20 +112,24 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         # 即座に200を返す（StackChan を待たせない / fire-and-forget）
+        response_data = json.dumps({"status": "ok", "command_id": command_id})
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(response_data)))
+        self.send_header("Connection", "close")
         self.end_headers()
-        self.wfile.write(json.dumps({"status": "ok", "command_id": command_id}).encode("utf-8"))
+        self.wfile.write(response_data.encode("utf-8"))
+        log.info("200 OK → StackChan")
 
         # エルメスで処理（HTTPレスポンスの後で非同期に実行）
         try:
             response_text = process_with_hermes(text, system_prompt)
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as e:
             response_text = "ごめん、考えすぎた。もう一回話しかけて"
-            sys.stderr.write("[webhook] timeout: hermes chat -q\n")
+            log.error(f"hermes timeout: {e}")
         except Exception as e:
             response_text = "ごめん、エラーみたい"
-            sys.stderr.write(f"[webhook] error: {e}\n")
+            log.exception(f"hermes error: {e}")
 
         # StackChan に返答を送信
         reply_body = json.dumps({"command_id": command_id, "voice_text": response_text})
@@ -113,18 +139,23 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 url, data=reply_body.encode("utf-8"),
                 headers={"Content-Type": "application/json"}
             )
-            urllib.request.urlopen(req, timeout=10)
-            sys.stderr.write(f"[webhook] → {url}: \"{response_text[:60]}\"\n")
+            urllib.request.urlopen(req, timeout=30)
+            log.info(f"→ {url}: \"{response_text[:60]}\"")
         except Exception as e:
-            sys.stderr.write(f"[webhook] reply error: {e}\n")
+            log.error(f"reply error: {e}")
 
     def log_message(self, format, *args):
-        sys.stderr.write(f"[webhook] {format % args}\n")
+        log.warning(f"{format % args}")
+
+
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    """スレッドプールでリクエストを並行処理"""
+    pass
 
 
 def main():
-    server = HTTPServer(("0.0.0.0", WEBHOOK_PORT), WebhookHandler)
-    sys.stderr.write(
+    server = ThreadingHTTPServer(("0.0.0.0", WEBHOOK_PORT), WebhookHandler)
+    banner = (
         f"\n"
         f"╔══════════════════════════════════════════════╗\n"
         f"║   エルメス Webhook サーバー起動              ║\n"
@@ -133,9 +164,10 @@ def main():
         f"║   model: {HERMES_MODEL or 'default'}                  ║\n"
         f"╚══════════════════════════════════════════════╝\n"
     )
+    log.info(banner)
 
     def shutdown(sig, frame):
-        sys.stderr.write("[webhook] 終了\n")
+        log.info("終了")
         server.server_close()
         sys.exit(0)
 
