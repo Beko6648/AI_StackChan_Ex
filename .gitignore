@@ -13,3 +13,7 @@ CLAUDE.full.md
 
 # スクリプト開発の依存モジュール
 my_script/node_modules/
+
+# エルメス Webhook サーバーのランタイムファイル
+my_script/hermes_webhook.pid
+my_script/hermes_webhook.log

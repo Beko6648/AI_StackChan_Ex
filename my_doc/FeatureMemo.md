@@ -136,7 +136,31 @@ self_talk_prompt: |     # 自発発話時のユーザーメッセージ
 
 ---
 
-### Claude Code Webhook 連携（クローディア）
+### エルメス Webhook 連携（新方式）
+
+**古い方式（廃止予定）:** webhook_channel.ts (Bun MCP) + クローディア (Claude Code) — 上記「クローディア連携」参照。
+
+**新しい方式:** `my_script/hermes_webhook_server.py` + エルメス (Hermes Agent) に置き換え済み。
+
+フロー:
+```
+StackChan（音声入力）→ STT → HTTP POST :8788
+→ hermes_webhook_server.py → hermes chat -q → 返答
+→ POST /command_result → VOICEVOX → 再生
+```
+
+起動（WSL）。
+```bash
+bash my_script/hermes_webhook_start.sh start    # 起動
+bash my_script/hermes_webhook_start.sh stop     # 停止
+bash my_script/hermes_webhook_start.sh status   # 状態確認
+```
+
+環境変数:
+- `STACKCHAN_IP` — StackChan の IP (デフォルト: 192.168.1.114)
+- `WEBHOOK_PORT` — 待受ポート (デフォルト: 8788)
+- `HERMES_MODEL` — 使用モデル（空=デフォルト）
+- `RESPONSE_TIMEOUT` — タイムアウト秒 (デフォルト: 60)
 
 `my_script/webhook_channel.ts`（Bun/TypeScript 製 MCP Channel サーバー）を介して、クローディア本体セッションと双方向通信する。
 
