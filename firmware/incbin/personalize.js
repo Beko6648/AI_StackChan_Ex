@@ -160,9 +160,48 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch((err) => showError('Error: ' + err.message));
   });
 
+  // YAMLのブロックスカラー（|）内のインデント崩れを検出する簡易バリデーション
+  function validateCharacterYaml(text) {
+    const lines = text.split('\n');
+    let blockIndent = null;
+    let inBlock = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trimStart();
+      const indent = line.length - trimmed.length;
+      // ブロックスカラーの開始行を検出（|, |-, |+, |2, |-2, |+2, >, >-, >+, >2 など）
+            if (/:\s*[|>][-+]?\d*\s*$/.test(line)) {
+        inBlock = true;
+        blockIndent = null;
+        continue;
+      }
+      if (inBlock) {
+        if (trimmed === '') continue;  // 空行はOK
+        if (blockIndent === null) {
+          blockIndent = indent;         // 最初の行でインデント幅を確定
+        } else if (indent < blockIndent) {
+          // インデントが減った → ブロック終了（次のキーへ）
+          inBlock = false;
+          blockIndent = null;
+          // この行がキーでなければエラー
+          if (!trimmed.includes(':') && !/^[#-]/.test(trimmed)) {
+            return '行 ' + (i + 1) + ': ブロックスカラー（|）内のインデントが不足しています。スペースで揃えてください。';
+          }
+        }
+      }
+    }
+    return null;  // エラーなし
+  }
+
   saveCharacterButton.addEventListener('click', () => {
     const name = characterSelect.value;
     if (!name) return;
+    // 保存前にYAMLバリデーション
+    const yamlError = validateCharacterYaml(characterInput.value);
+    if (yamlError) {
+      showError('YAML エラー: ' + yamlError);
+      return;
+    }
     fetch('/character_set?name=' + encodeURIComponent(name), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },

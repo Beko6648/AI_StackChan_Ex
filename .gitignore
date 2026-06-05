@@ -6,3 +6,10 @@ Copy-to-SD/yaml/SC_SecConfig.yaml
 
 # StackChan ←→ Claude Code 連携：セッションID（個人環境依存）
 my_script/stackchan_session.txt
+
+# エージェント設定ファイル（個人環境依存）
+AGENTS.md
+CLAUDE.full.md
+
+# スクリプト開発の依存モジュール
+my_script/node_modules/
